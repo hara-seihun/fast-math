@@ -1,0 +1,13 @@
+build*/
+dist/
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+*.dylib
+*.dll
+*.log
+*.so
+
+benchmarks/results/*
+!benchmarks/results/README.md

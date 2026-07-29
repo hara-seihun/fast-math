@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fast-math"
+version = "0.7.0"
+description = "Native shared compute kernels for mathematical research"
+readme = "README.md"
+license = "MIT"
+authors = [
+  { name = "Kenan", email = "works.kenan@proton.me" },
+]
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/kenan-math/fast-math"
+Repository = "https://github.com/kenan-math/fast-math"
+Issues = "https://github.com/kenan-math/fast-math/issues"
+
+[project.optional-dependencies]
+finufft = [
+  "finufft>=2.5,<3",
+]
+metal = [
+  "mlx>=0.32,<1; platform_system == 'Darwin'",
+]
+cuda = [
+  "cupy-cuda12x[ctk]>=13,<15; platform_system == 'Linux'",
+]
+
+[dependency-groups]
+dev = [
+  "networkx>=3.5",
+  "pytest>=8.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["python/fast_math", "python/lambda_fast"]
+
+[tool.pytest.ini_options]
+pythonpath = ["python"]
+testpaths = ["tests"]
