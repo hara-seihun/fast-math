@@ -62,20 +62,42 @@ connections = atom_subsets_to_element_words(
     classes.representative_words,
     atoms,
     group_order=len(multiplication_table),
+    threads=8,
+    backend="native",
 )
 batch = canonicalize_cayley_graphs(
     multiplication_table,
     connections,
     inverse_indices=inverse_indices,
+    threads=8,
+    collect_automorphism_generators=False,
     graph_backend="native",
     canonical_backend="native",
 )
 ```
 
+`action_is_group=None` auto-detects whether the supplied action rows are the
+complete finite group. A complete action is validated for unique rows,
+identity, and closure, then each subset orbit is generated from one seed
+instead of traversing the action graph. Set `action_is_group=True` to require
+that contract or `False` for an ordinary generator list. One-word masks
+(through 64 atoms) use a byte-lookup bit-permutation kernel; multiword masks
+retain the portable degree-512 route.
+
 The Cayley convention is the arc `(g, s*g)`, so multiplication-table row `s`
 acts on every vertex `g`. The native constructor writes the packed adjacency
 batch consumed directly by `canonicalize_colored_digraphs`; no graph objects
-or shellouts occur in the hot path.
+or shellouts occur in the hot path. Atom expansion and inverse-closure
+validation are batched and do not construct Python sets per connection.
+
+`canonicalize_colored_digraphs(..., threads=N)` schedules independent nauty
+calls across worker-local workspaces when the linked nauty build exposes TLS;
+non-TLS builds are forced to one worker. The common generator-producing path
+is single-pass with deterministic graph-order compaction and an exact legacy
+fallback if its bounded buffer is exceeded. Census callers that only need
+canonical forms, group sizes, and orbit counts should set
+`collect_automorphism_generators=False`; offsets are then all zero and the
+generator array has shape `(0, vertex_count)`.
 
 `generalized_dihedral_group(moduli)` constructs
 `Dih(C_moduli[0] x ... x C_moduli[k])`. Rotations precede reflections.
@@ -115,6 +137,11 @@ value is independent of the chosen pair. `graph_coherent_configuration`
 constructs the initial diagonal/edge/nonedge coloring from a Boolean or packed
 loopless graph.
 
+Routes that need only stable 2-WL relations should call
+`wl2_refinement` or `graph_wl2_refinement`. These return `WL2Refinement`
+without constructing or verifying the intersection tensor; they are
+deliberately not named coherent configurations.
+
 Use `max_tensor_entries` to bound the cubic output allocation. The refinement
 kernel supports graphs of order a few hundred; the test suite exercises order
 257.
@@ -131,13 +158,30 @@ graph6 string different from the retained undirected `labelg` convention.
 Atlas parity therefore compares the invariant fiber partition, not spelling
 of the canonical graph6 representative.
 
-Run the retained benchmark with:
+Run the retained benchmarks with:
 
 ```sh
-make groups-ci
+../bin/compute --slots 8 --memory-mb 8192 --timeout-seconds 600 -- \
+  python benchmarks/benchmark_ci_pipeline_stages.py \
+    --threads 8 --repeats 7 \
+    --output benchmarks/results/ci-pipeline-atlas-final.json
+../bin/compute --slots 7 --memory-mb 8192 --timeout-seconds 600 -- \
+  python benchmarks/benchmark_ci_q60_shard.py \
+    --threads 7 --repeats 5 \
+    --output benchmarks/results/ci-q60-shard-final.json
+../bin/compute --slots 3 --memory-mb 4096 --timeout-seconds 900 -- \
+  python benchmarks/benchmark_ci_wl2_residual.py \
+    --limit 256 --repeats 3 --threads 3 \
+    --output benchmarks/results/ci-wl2-residual-final.json
 ```
 
-The July 29, 2026 record is
-`benchmarks/results/groups-ci-atlas-2026-07-29.json`. All native kernels have
-portable CPU implementations; nauty is optional at build time, and tests that
-require it skip when the symbol is absent.
+The July 29, 2026 optimized atlas median is `0.12926016957499087` seconds
+with generator materialization retained. This is
+`18.980477590430294x` faster than the pre-optimization native pipeline and
+`40.14429013199191x` faster than the retained
+Python/NetworkX/`labelg` path. The exact Q60 shard improved
+`2.227806721290944x`; refinement-only 2-WL improved the retained 256-graph
+residual `1.3529226759231057x`.
+
+All native kernels have portable CPU implementations; nauty is optional at
+build time, and tests that require it skip when the symbol is absent.

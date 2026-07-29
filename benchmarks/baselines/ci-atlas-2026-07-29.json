@@ -1,0 +1,41 @@
+{
+  "date": "2026-07-29",
+  "hardware": {
+    "architecture": "arm64",
+    "chip": "Apple M4 Pro",
+    "memory_gb": 48,
+    "operating_system": "macOS 26.5.2"
+  },
+  "oracle": {
+    "automorphism_orbits": 11664,
+    "graph_fibers": 9606,
+    "groups": 13
+  },
+  "pre_optimization_native": {
+    "command": "python benchmarks/benchmark_ci_pipeline_stages.py --threads 4 --repeats 3",
+    "record": "problems/cayley-ci/scratch/generalized-dihedral--fast-math-ci-hot-path-v2/stage-baseline-c58e1ea301.json",
+    "samples_seconds": [
+      2.2584530413150787,
+      2.4534197519533336,
+      2.4632937079295516
+    ],
+    "median_seconds": 2.4534197519533336,
+    "threads": 4
+  },
+  "python_networkx_labelg": {
+    "command": "make groups-ci",
+    "record": "fast-math/benchmarks/results/groups-ci-atlas-2026-07-29.json",
+    "samples_seconds": [
+      4.3452479171101,
+      5.189057749928907,
+      5.9441047080326825
+    ],
+    "median_seconds": 5.189057749928907,
+    "threads": 4
+  },
+  "schema": 1,
+  "source": {
+    "fast_math_revision": "4f8166047775e264ea04eb841ec7808830d7d749",
+    "research_revision": "c58e1ea3017c70ea8f15531a7abf46d04f4e58cb"
+  }
+}

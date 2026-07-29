@@ -75,6 +75,41 @@ def _library() -> ctypes.CDLL:
             ctypes.c_size_t,
         ]
         library.fast_math_subset_orbits_u64.restype = ctypes.c_int
+        if hasattr(library, "fast_math_subset_orbits_v2_u64"):
+            library.fast_math_subset_orbits_v2_u64.argtypes = [
+                u64,
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                u32,
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                u64,
+                u64,
+                u64,
+                u64,
+                stats,
+                char,
+                ctypes.c_size_t,
+            ]
+            library.fast_math_subset_orbits_v2_u64.restype = ctypes.c_int
+        if hasattr(library, "fast_math_expand_atom_subsets_u64"):
+            library.fast_math_expand_atom_subsets_u64.argtypes = [
+                u64,
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                u64,
+                u32,
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                u64,
+                stats,
+                char,
+                ctypes.c_size_t,
+            ]
+            library.fast_math_expand_atom_subsets_u64.restype = ctypes.c_int
         library.fast_math_cayley_graphs_u32.argtypes = [
             u32,
             ctypes.c_uint32,
@@ -181,6 +216,7 @@ def subset_orbits_native(
     subset_words: NDArray[np.uint64],
     action_generators: NDArray[np.uint32],
     atom_count: int,
+    action_mode: int,
 ) -> tuple[
     NDArray[np.uint64],
     NDArray[np.uint64],
@@ -194,21 +230,44 @@ def subset_orbits_native(
     class_count = ctypes.c_uint64()
     stats = NativeCIStats()
     error = ctypes.create_string_buffer(1024)
-    status = _library().fast_math_subset_orbits_u64(
-        _u64(subset_words),
-        subset_count,
-        word_count,
-        atom_count,
-        _u32(action_generators),
-        len(action_generators),
-        _u64(class_ids),
-        _u64(representatives),
-        _u64(sizes),
-        ctypes.byref(class_count),
-        ctypes.byref(stats),
-        error,
-        len(error),
-    )
+    library = _library()
+    if hasattr(library, "fast_math_subset_orbits_v2_u64"):
+        status = library.fast_math_subset_orbits_v2_u64(
+            _u64(subset_words),
+            subset_count,
+            word_count,
+            atom_count,
+            _u32(action_generators),
+            len(action_generators),
+            action_mode,
+            _u64(class_ids),
+            _u64(representatives),
+            _u64(sizes),
+            ctypes.byref(class_count),
+            ctypes.byref(stats),
+            error,
+            len(error),
+        )
+    elif action_mode == 2:
+        raise NativeUnavailable(
+            "native complete-action subset orbit validation is unavailable"
+        )
+    else:
+        status = library.fast_math_subset_orbits_u64(
+            _u64(subset_words),
+            subset_count,
+            word_count,
+            atom_count,
+            _u32(action_generators),
+            len(action_generators),
+            _u64(class_ids),
+            _u64(representatives),
+            _u64(sizes),
+            ctypes.byref(class_count),
+            ctypes.byref(stats),
+            error,
+            len(error),
+        )
     _raise(status, error)
     classes = int(class_count.value)
     return class_ids, representatives[:classes], sizes[:classes], stats
@@ -241,6 +300,45 @@ def cayley_graphs_native(
     )
     _raise(status, error)
     return adjacency, stats
+
+
+def expand_atom_subsets_native(
+    subset_words: NDArray[np.uint64],
+    atom_offsets: NDArray[np.uint64],
+    atom_elements: NDArray[np.uint32],
+    group_order: int,
+    threads: int,
+) -> tuple[NDArray[np.uint64], NativeCIStats]:
+    library = _library()
+    if not hasattr(library, "fast_math_expand_atom_subsets_u64"):
+        raise NativeUnavailable(
+            "native atom-subset expansion is unavailable"
+        )
+    subset_count, subset_word_count = subset_words.shape
+    atom_count = len(atom_offsets) - 1
+    element_words = np.empty(
+        (subset_count, (group_order + 63) // 64),
+        dtype=np.uint64,
+    )
+    stats = NativeCIStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_expand_atom_subsets_u64(
+        _u64(subset_words),
+        subset_count,
+        subset_word_count,
+        atom_count,
+        _u64(atom_offsets),
+        _u32(atom_elements),
+        len(atom_elements),
+        group_order,
+        threads,
+        _u64(element_words),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _raise(status, error)
+    return element_words, stats
 
 
 def derivative_orbits_native(

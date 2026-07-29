@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import permutations, product
+from numbers import Integral
 import time
 from typing import Literal
 
@@ -132,6 +133,8 @@ def _class_ids(
 def _reference(
     adjacency: NDArray[np.uint64],
     colors: NDArray[np.uint32],
+    *,
+    collect_automorphism_generators: bool,
 ) -> CanonicalDigraphBatch:
     vertex_count = adjacency.shape[1]
     if vertex_count > 9:
@@ -199,7 +202,8 @@ def _reference(
                 for source, target in enumerate(mapping)
             )
         ]
-        all_generators.extend(nonidentity_generators)
+        if collect_automorphism_generators:
+            all_generators.extend(nonidentity_generators)
         generator_offsets[graph_index + 1] = len(all_generators)
         parent = list(range(vertex_count))
 
@@ -242,11 +246,19 @@ def canonicalize_colored_digraphs(
     adjacency_words: ArrayLike,
     vertex_colors: ArrayLike,
     *,
+    threads: int = 0,
+    collect_automorphism_generators: bool = True,
     backend: Backend = "auto",
 ) -> CanonicalDigraphBatch:
     """Canonicalize a batch of directed vertex-colored simple graphs."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
+    if not isinstance(threads, Integral) or int(threads) < 0:
+        raise ValueError("threads must be a nonnegative integer")
+    if not isinstance(collect_automorphism_generators, bool):
+        raise ValueError(
+            "collect_automorphism_generators must be a Boolean"
+        )
     adjacency, colors = _prepare(adjacency_words, vertex_colors)
     if backend in {"auto", "native"}:
         try:
@@ -260,7 +272,14 @@ def canonicalize_colored_digraphs(
                 generator_offsets,
                 generators,
                 stats,
-            ) = canonical_digraphs_nauty_native(adjacency, colors)
+            ) = canonical_digraphs_nauty_native(
+                adjacency,
+                colors,
+                threads=int(threads),
+                collect_automorphism_generators=(
+                    collect_automorphism_generators
+                ),
+            )
         except (NativeUnavailable, OSError, AttributeError):
             if backend == "native":
                 raise
@@ -279,4 +298,8 @@ def canonicalize_colored_digraphs(
                 elapsed_seconds=float(stats.elapsed_seconds),
                 backend="native",
             )
-    return _reference(adjacency, colors)
+    return _reference(
+        adjacency,
+        colors,
+        collect_automorphism_generators=collect_automorphism_generators,
+    )

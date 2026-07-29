@@ -150,6 +150,96 @@ def test_nauty_multiword_isomorphism_at_seventy_vertices() -> None:
     )
 
 
+@pytest.mark.skipif(not NATIVE_AVAILABLE, reason="native library is not built")
+def test_parallel_nauty_matches_serial_exactly() -> None:
+    rng = np.random.default_rng(8294)
+    dense = np.zeros((32, 12, 12), dtype=np.uint8)
+    for graph in dense:
+        graph[:] = rng.random((12, 12)) < 0.18
+        np.fill_diagonal(graph, 0)
+    colors = rng.integers(0, 3, size=(32, 12), dtype=np.uint32)
+    packed = pack_digraph_adjacency(dense)
+    serial = canonicalize_colored_digraphs(
+        packed,
+        colors,
+        threads=1,
+        backend="native",
+    )
+    parallel = canonicalize_colored_digraphs(
+        packed,
+        colors,
+        threads=4,
+        backend="native",
+    )
+    for field in (
+        "permutations",
+        "adjacency_words",
+        "vertex_colors",
+        "class_ids",
+        "automorphism_group_mantissas",
+        "automorphism_group_exponents",
+        "orbit_counts",
+        "automorphism_generator_offsets",
+        "automorphism_generators",
+    ):
+        np.testing.assert_array_equal(
+            getattr(parallel, field),
+            getattr(serial, field),
+        )
+    assert parallel.search_nodes == serial.search_nodes
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "reference",
+        pytest.param(
+            "native",
+            marks=pytest.mark.skipif(
+                not NATIVE_AVAILABLE,
+                reason="native library is not built",
+            ),
+        ),
+    ],
+)
+def test_canonicalization_can_skip_automorphism_generators(
+    backend: str,
+) -> None:
+    dense = np.zeros((2, 6, 6), dtype=np.uint8)
+    for graph in dense:
+        for vertex in range(6):
+            graph[vertex, (vertex + 1) % 6] = 1
+    packed = pack_digraph_adjacency(dense)
+    colors = np.zeros((2, 6), dtype=np.uint32)
+    full = canonicalize_colored_digraphs(
+        packed,
+        colors,
+        threads=2,
+        backend=backend,
+    )
+    compact = canonicalize_colored_digraphs(
+        packed,
+        colors,
+        threads=2,
+        collect_automorphism_generators=False,
+        backend=backend,
+    )
+    np.testing.assert_array_equal(
+        compact.adjacency_words,
+        full.adjacency_words,
+    )
+    np.testing.assert_array_equal(
+        compact.automorphism_group_mantissas,
+        full.automorphism_group_mantissas,
+    )
+    np.testing.assert_array_equal(compact.orbit_counts, full.orbit_counts)
+    np.testing.assert_array_equal(
+        compact.automorphism_generator_offsets,
+        np.zeros(3, dtype=np.uint64),
+    )
+    assert compact.automorphism_generators.shape == (0, 6)
+
+
 def test_pack_digraph_rejects_self_loops() -> None:
     adjacency = np.eye(3, dtype=np.uint8)
     with pytest.raises(ValueError, match="self-loop"):

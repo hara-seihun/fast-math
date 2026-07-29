@@ -120,6 +120,7 @@ from .ci import (
     GeneralizedDihedralGroup,
     InverseClosedAtoms,
     SubsetOrbitPartition,
+    WL2Refinement,
     atom_subsets_to_element_words,
     canonicalize_cayley_graphs,
     cayley_graphs,
@@ -133,10 +134,12 @@ from .ci import (
     generalized_dihedral_automorphisms,
     generalized_dihedral_group,
     graph_coherent_configuration,
+    graph_wl2_refinement,
     induced_atom_action,
     induced_atom_generators,
     inverse_closed_atoms,
     pack_subsets,
+    wl2_refinement,
 )
 
 __all__ = [
@@ -227,6 +230,7 @@ __all__ = [
     "InverseClosedAtoms",
     "SchreierSimsChain",
     "SubsetOrbitPartition",
+    "WL2Refinement",
     "atom_subsets_to_element_words",
     "canonicalize_cayley_graphs",
     "cayley_graphs",
@@ -241,6 +245,7 @@ __all__ = [
     "generalized_dihedral_automorphisms",
     "generalized_dihedral_group",
     "graph_coherent_configuration",
+    "graph_wl2_refinement",
     "group_order",
     "induced_atom_action",
     "induced_atom_generators",
@@ -251,4 +256,5 @@ __all__ = [
     "permutation_group_contains",
     "permutation_orbits",
     "schreier_sims",
+    "wl2_refinement",
 ]

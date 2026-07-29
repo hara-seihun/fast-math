@@ -233,6 +233,37 @@ FAST_MATH_API int fast_math_subset_orbits_u64(
     char* error_message,
     std::size_t error_message_size);
 
+FAST_MATH_API int fast_math_subset_orbits_v2_u64(
+    const std::uint64_t* subset_words,
+    std::size_t subset_count,
+    std::uint32_t word_count,
+    std::uint32_t atom_count,
+    const std::uint32_t* action_generators,
+    std::size_t generator_count,
+    std::uint32_t action_mode,
+    std::uint64_t* class_ids,
+    std::uint64_t* representative_indices,
+    std::uint64_t* class_sizes,
+    std::uint64_t* class_count,
+    fast_math_ci_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_expand_atom_subsets_u64(
+    const std::uint64_t* subset_words,
+    std::size_t subset_count,
+    std::uint32_t subset_word_count,
+    std::uint32_t atom_count,
+    const std::uint64_t* atom_offsets,
+    const std::uint32_t* atom_elements,
+    std::size_t atom_element_count,
+    std::uint32_t group_order,
+    std::uint32_t thread_count,
+    std::uint64_t* element_words,
+    fast_math_ci_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
 FAST_MATH_API int fast_math_cayley_graphs_u32(
     const std::uint32_t* multiplication_table,
     std::uint32_t group_order,
@@ -461,6 +492,28 @@ FAST_MATH_API int fast_math_canonical_digraphs_nauty_u64(
     std::size_t graph_count,
     std::uint32_t vertex_count,
     std::uint32_t word_count,
+    std::uint32_t* canonical_permutations,
+    std::uint64_t* canonical_adjacency_words,
+    std::uint32_t* canonical_vertex_colors,
+    double* automorphism_group_mantissas,
+    std::int32_t* automorphism_group_exponents,
+    std::uint32_t* orbit_counts,
+    std::uint64_t* generator_offsets,
+    std::size_t generator_capacity,
+    std::uint32_t* generator_permutations,
+    std::uint64_t* generator_count,
+    fast_math_canonical_graph_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_canonical_digraphs_nauty_v2_u64(
+    const std::uint64_t* adjacency_words,
+    const std::uint32_t* vertex_colors,
+    std::size_t graph_count,
+    std::uint32_t vertex_count,
+    std::uint32_t word_count,
+    std::uint32_t thread_count,
+    std::uint8_t collect_automorphism_generators,
     std::uint32_t* canonical_permutations,
     std::uint64_t* canonical_adjacency_words,
     std::uint32_t* canonical_vertex_colors,

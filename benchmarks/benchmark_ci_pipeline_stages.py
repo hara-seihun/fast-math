@@ -82,6 +82,8 @@ def one_run(models, threads: int, collect_generators: bool):
             partition.representative_words,
             model.atoms,
             group_order=len(model.elements),
+            threads=threads,
+            backend="native",
         )
         totals["connection_pack_wall_seconds"] += perf_counter() - started
 
@@ -153,9 +155,20 @@ def main() -> None:
         "--no-generators",
         action="store_true",
     )
+    parser.add_argument(
+        "--baseline-record",
+        type=Path,
+        default=(
+            PROJECT_ROOT
+            / "benchmarks/baselines/ci-atlas-2026-07-29.json"
+        ),
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
+    baseline = json.loads(
+        args.baseline_record.read_text(encoding="utf-8")
+    )
     builder = load_atlas_builder()
     models = [builder.build_group(spec) for spec in builder.atlas_specs()]
     runs = [
@@ -170,18 +183,46 @@ def main() -> None:
     if any(run["fiber_partition"] != expected for run in runs[1:]):
         raise AssertionError("atlas fiber partition changed between runs")
     metric_names = sorted(runs[0]["totals"])
+    total_median = median(
+        run["totals"]["total_wall_seconds"] for run in runs
+    )
+    automorphism_orbits = sum(
+        row["connection_orbits"] for row in runs[0]["groups"]
+    )
+    graph_fibers = sum(
+        row["graph_fibers"] for row in runs[0]["groups"]
+    )
+    if (
+        automorphism_orbits
+        != baseline["oracle"]["automorphism_orbits"]
+        or graph_fibers != baseline["oracle"]["graph_fibers"]
+        or len(runs[0]["groups"]) != baseline["oracle"]["groups"]
+    ):
+        raise AssertionError("atlas output disagrees with the retained oracle")
+    baseline_path = args.baseline_record.resolve()
+    try:
+        baseline_name = str(baseline_path.relative_to(PROJECT_ROOT.parent))
+    except ValueError:
+        baseline_name = str(baseline_path)
     payload = {
         "schema": 1,
         "date": "2026-07-29",
         "threads": args.threads,
         "repeats": args.repeats,
         "collect_automorphism_generators": not args.no_generators,
-        "automorphism_orbits": sum(
-            row["connection_orbits"] for row in runs[0]["groups"]
-        ),
-        "graph_fibers": sum(
-            row["graph_fibers"] for row in runs[0]["groups"]
-        ),
+        "automorphism_orbits": automorphism_orbits,
+        "graph_fibers": graph_fibers,
+        "baseline_record": baseline_name,
+        "speedups": {
+            "pre_optimization_native": (
+                baseline["pre_optimization_native"]["median_seconds"]
+                / total_median
+            ),
+            "python_networkx_labelg": (
+                baseline["python_networkx_labelg"]["median_seconds"]
+                / total_median
+            ),
+        },
         "metrics": {
             name: {
                 "samples": [run["totals"][name] for run in runs],

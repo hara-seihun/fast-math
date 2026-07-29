@@ -3,6 +3,8 @@
 #include "parallel.hpp"
 
 #include <algorithm>
+#include <array>
+#include <bit>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -12,6 +14,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace {
@@ -166,13 +169,99 @@ PackedSubset permute_subset(
     std::uint32_t atom_count,
     std::uint32_t word_count) {
   PackedSubset result(word_count, 0);
-  for (std::uint32_t atom = 0; atom < atom_count; ++atom) {
-    if ((subset[atom / 64] &
-         (std::uint64_t{1} << (atom % 64))) == 0) {
-      continue;
+  for (std::uint32_t word = 0; word < word_count; ++word) {
+    auto active = subset[word];
+    while (active != 0) {
+      const auto bit =
+          static_cast<std::uint32_t>(std::countr_zero(active));
+      const auto atom = word * 64 + bit;
+      if (atom >= atom_count) {
+        break;
+      }
+      const auto image = permutation[atom];
+      result[image / 64] |= std::uint64_t{1} << (image % 64);
+      active &= active - 1;
     }
-    const auto image = permutation[atom];
-    result[image / 64] |= std::uint64_t{1} << (image % 64);
+  }
+  return result;
+}
+
+bool is_complete_action(
+    const std::vector<Permutation>& action,
+    std::uint32_t degree,
+    bool required) {
+  std::unordered_set<Permutation, VectorHash> elements;
+  elements.reserve(action.size() * 2 + 1);
+  for (const auto& permutation : action) {
+    if (!elements.insert(permutation).second) {
+      if (required) {
+        throw std::invalid_argument(
+            "complete action rows must be unique");
+      }
+      return false;
+    }
+  }
+  Permutation identity(degree);
+  std::iota(identity.begin(), identity.end(), 0);
+  if (!elements.contains(identity)) {
+    if (required) {
+      throw std::invalid_argument(
+          "complete action must contain the identity");
+    }
+    return false;
+  }
+  for (const auto& left : action) {
+    for (const auto& right : action) {
+      if (!elements.contains(compose(left, right))) {
+        if (required) {
+          throw std::invalid_argument(
+              "complete action is not closed under composition");
+        }
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+struct MaskPermutation64 {
+  std::array<std::uint64_t, 8 * 256> lookup{};
+};
+
+std::vector<MaskPermutation64> build_mask_permutations(
+    const std::vector<Permutation>& permutations,
+    std::uint32_t degree) {
+  std::vector<MaskPermutation64> result(permutations.size());
+  for (std::size_t index = 0; index < permutations.size(); ++index) {
+    for (std::uint32_t byte = 0; byte < 8; ++byte) {
+      const auto base = byte * 256;
+      for (std::uint32_t value = 1; value < 256; ++value) {
+        const auto bit =
+            static_cast<std::uint32_t>(std::countr_zero(value));
+        const auto point = byte * 8 + bit;
+        auto image = result[index].lookup[
+            base + (value & (value - 1))];
+        if (point < degree) {
+          image |= std::uint64_t{1}
+              << permutations[index][point];
+        }
+        result[index].lookup[base + value] = image;
+      }
+    }
+  }
+  return result;
+}
+
+std::uint64_t permute_mask(
+    std::uint64_t mask,
+    const MaskPermutation64& permutation) {
+  std::uint64_t result = 0;
+  std::uint32_t byte = 0;
+  while (mask != 0) {
+    result |= permutation.lookup[
+        byte * 256 + (mask & 0xff)];
+    mask >>= 8;
+    ++byte;
   }
   return result;
 }
@@ -214,6 +303,7 @@ std::uint32_t refine_wl2(
   const auto pair_count =
       static_cast<std::size_t>(vertex_count) * vertex_count;
   std::vector<std::vector<std::uint64_t>> signatures(pair_count);
+  std::vector<std::uint64_t> keys(vertex_count);
   std::vector<std::size_t> order(pair_count);
   std::iota(order.begin(), order.end(), 0);
   *iteration_count = 0;
@@ -223,7 +313,6 @@ std::uint32_t refine_wl2(
       for (std::uint32_t right = 0; right < vertex_count; ++right) {
         const auto pair =
             static_cast<std::size_t>(left) * vertex_count + right;
-        std::vector<std::uint64_t> keys(vertex_count);
         for (std::uint32_t middle = 0;
              middle < vertex_count;
              ++middle) {
@@ -238,15 +327,16 @@ std::uint32_t refine_wl2(
         std::sort(keys.begin(), keys.end());
         auto& signature = signatures[pair];
         signature.clear();
-        signature.reserve(1 + keys.size() * 2);
+        signature.reserve(1 + vertex_count * 2);
         signature.push_back(relations[pair]);
-        for (std::size_t begin = 0; begin < keys.size();) {
+        for (auto begin = keys.begin(); begin != keys.end();) {
           auto end = begin + 1;
-          while (end < keys.size() && keys[end] == keys[begin]) {
+          while (end != keys.end() && *end == *begin) {
             ++end;
           }
-          signature.push_back(keys[begin]);
-          signature.push_back(end - begin);
+          signature.push_back(*begin);
+          signature.push_back(
+              static_cast<std::uint64_t>(end - begin));
           begin = end;
         }
       }
@@ -394,13 +484,14 @@ int fast_math_permutation_double_cosets_u32(
   }
 }
 
-int fast_math_subset_orbits_u64(
+int fast_math_subset_orbits_v2_u64(
     const std::uint64_t* subset_words,
     std::size_t subset_count,
     std::uint32_t word_count,
     std::uint32_t atom_count,
     const std::uint32_t* action_generators,
     std::size_t generator_count,
+    std::uint32_t action_mode,
     std::uint64_t* class_ids,
     std::uint64_t* representative_indices,
     std::uint64_t* class_sizes,
@@ -412,6 +503,9 @@ int fast_math_subset_orbits_u64(
     if (atom_count == 0 || atom_count > 512 ||
         word_count != (atom_count + 63) / 64) {
       throw std::invalid_argument("subset packed shape is invalid");
+    }
+    if (action_mode > 2) {
+      throw std::invalid_argument("subset action mode is invalid");
     }
     if (class_count == nullptr || stats == nullptr ||
         (subset_count != 0 &&
@@ -428,6 +522,135 @@ int fast_math_subset_orbits_u64(
     const auto final_mask = final_bits == 0
         ? ~std::uint64_t{0}
         : (std::uint64_t{1} << final_bits) - 1;
+
+    set_error(error_message, error_message_size, "");
+    *stats = {};
+    const auto started = Clock::now();
+    const auto complete_action =
+        action_mode == 2 ||
+        (action_mode == 0 &&
+         is_complete_action(generators, atom_count, false));
+    if (action_mode == 2) {
+      is_complete_action(generators, atom_count, true);
+    }
+    if (word_count == 1) {
+      std::vector<std::uint64_t> masks(subset_count);
+      std::unordered_map<std::uint64_t, std::size_t> mask_index;
+      mask_index.reserve(subset_count * 2 + 1);
+      for (std::size_t index = 0; index < subset_count; ++index) {
+        const auto mask = subset_words[index];
+        if ((mask & ~final_mask) != 0) {
+          throw std::invalid_argument(
+              "subset contains an out-of-range atom");
+        }
+        if (!mask_index.emplace(mask, index).second) {
+          throw std::invalid_argument("subset rows must be unique");
+        }
+        masks[index] = mask;
+        class_ids[index] = std::numeric_limits<std::uint64_t>::max();
+      }
+      const auto mask_permutations =
+          build_mask_permutations(generators, atom_count);
+      struct MaskOrbit {
+        std::size_t representative = 0;
+        std::vector<std::size_t> members;
+      };
+      std::vector<MaskOrbit> mask_orbits;
+      std::deque<std::size_t> mask_queue;
+      for (std::size_t seed = 0; seed < subset_count; ++seed) {
+        if (class_ids[seed] !=
+            std::numeric_limits<std::uint64_t>::max()) {
+          continue;
+        }
+        const auto provisional_class = mask_orbits.size();
+        MaskOrbit orbit;
+        orbit.representative = seed;
+        class_ids[seed] = provisional_class;
+        if (complete_action) {
+          orbit.members.push_back(seed);
+          for (const auto& permutation : mask_permutations) {
+            const auto image =
+                permute_mask(masks[seed], permutation);
+            const auto found = mask_index.find(image);
+            if (found == mask_index.end()) {
+              throw std::invalid_argument(
+                  "subset collection is not invariant under the action");
+            }
+            const auto image_class = class_ids[found->second];
+            if (image_class == provisional_class) {
+              continue;
+            }
+            if (image_class !=
+                std::numeric_limits<std::uint64_t>::max()) {
+              throw std::runtime_error(
+                  "complete subset action crossed an earlier orbit");
+            }
+            class_ids[found->second] = provisional_class;
+            orbit.members.push_back(found->second);
+            if (masks[found->second] <
+                masks[orbit.representative]) {
+              orbit.representative = found->second;
+            }
+          }
+        } else {
+          mask_queue.push_back(seed);
+          while (!mask_queue.empty()) {
+            const auto current = mask_queue.front();
+            mask_queue.pop_front();
+            orbit.members.push_back(current);
+            if (masks[current] < masks[orbit.representative]) {
+              orbit.representative = current;
+            }
+            for (const auto& permutation : mask_permutations) {
+              const auto image =
+                  permute_mask(masks[current], permutation);
+              const auto found = mask_index.find(image);
+              if (found == mask_index.end()) {
+                throw std::invalid_argument(
+                    "subset collection is not invariant under the action");
+              }
+              if (class_ids[found->second] !=
+                  std::numeric_limits<std::uint64_t>::max()) {
+                continue;
+              }
+              class_ids[found->second] = provisional_class;
+              mask_queue.push_back(found->second);
+            }
+          }
+        }
+        mask_orbits.push_back(std::move(orbit));
+      }
+      std::vector<std::size_t> mask_order(mask_orbits.size());
+      std::iota(mask_order.begin(), mask_order.end(), 0);
+      std::sort(
+          mask_order.begin(),
+          mask_order.end(),
+          [&](std::size_t left, std::size_t right) {
+            return masks[mask_orbits[left].representative] <
+                masks[mask_orbits[right].representative];
+          });
+      for (std::size_t output_class = 0;
+           output_class < mask_order.size();
+           ++output_class) {
+        const auto& orbit =
+            mask_orbits[mask_order[output_class]];
+        representative_indices[output_class] =
+            orbit.representative;
+        class_sizes[output_class] = orbit.members.size();
+        for (const auto member : orbit.members) {
+          class_ids[member] = output_class;
+        }
+      }
+      *class_count = mask_orbits.size();
+      stats->degree = atom_count;
+      stats->generator_count = generator_count;
+      stats->item_count = subset_count;
+      stats->class_count = mask_orbits.size();
+      stats->elapsed_seconds =
+          std::chrono::duration<double>(
+              Clock::now() - started).count();
+      return 0;
+    }
     std::vector<PackedSubset> subsets;
     subsets.reserve(subset_count);
     std::unordered_map<PackedSubset, std::size_t, VectorHash> index_of;
@@ -446,10 +669,6 @@ int fast_math_subset_orbits_u64(
       subsets.push_back(std::move(subset));
       class_ids[index] = std::numeric_limits<std::uint64_t>::max();
     }
-
-    set_error(error_message, error_message_size, "");
-    *stats = {};
-    const auto started = Clock::now();
     struct Orbit {
       std::size_t representative = 0;
       std::vector<std::size_t> members;
@@ -464,19 +683,11 @@ int fast_math_subset_orbits_u64(
       Orbit orbit;
       orbit.representative = seed;
       class_ids[seed] = provisional_class;
-      queue.push_back(seed);
-      while (!queue.empty()) {
-        const auto current = queue.front();
-        queue.pop_front();
-        orbit.members.push_back(current);
-        if (packed_subset_less(
-                subsets[current],
-                subsets[orbit.representative])) {
-          orbit.representative = current;
-        }
+      if (complete_action) {
+        orbit.members.push_back(seed);
         for (const auto& generator : generators) {
           const auto image = permute_subset(
-              subsets[current],
+              subsets[seed],
               generator,
               atom_count,
               word_count);
@@ -485,12 +696,51 @@ int fast_math_subset_orbits_u64(
             throw std::invalid_argument(
                 "subset collection is not invariant under the action");
           }
-          if (class_ids[found->second] !=
-              std::numeric_limits<std::uint64_t>::max()) {
+          const auto image_class = class_ids[found->second];
+          if (image_class == provisional_class) {
             continue;
           }
+          if (image_class != std::numeric_limits<std::uint64_t>::max()) {
+            throw std::runtime_error(
+                "complete subset action crossed an earlier orbit");
+          }
           class_ids[found->second] = provisional_class;
-          queue.push_back(found->second);
+          orbit.members.push_back(found->second);
+          if (packed_subset_less(
+                  subsets[found->second],
+                  subsets[orbit.representative])) {
+            orbit.representative = found->second;
+          }
+        }
+      } else {
+        queue.push_back(seed);
+        while (!queue.empty()) {
+          const auto current = queue.front();
+          queue.pop_front();
+          orbit.members.push_back(current);
+          if (packed_subset_less(
+                  subsets[current],
+                  subsets[orbit.representative])) {
+            orbit.representative = current;
+          }
+          for (const auto& generator : generators) {
+            const auto image = permute_subset(
+                subsets[current],
+                generator,
+                atom_count,
+                word_count);
+            const auto found = index_of.find(image);
+            if (found == index_of.end()) {
+              throw std::invalid_argument(
+                  "subset collection is not invariant under the action");
+            }
+            if (class_ids[found->second] !=
+                std::numeric_limits<std::uint64_t>::max()) {
+              continue;
+            }
+            class_ids[found->second] = provisional_class;
+            queue.push_back(found->second);
+          }
         }
       }
       orbits.push_back(std::move(orbit));
@@ -520,6 +770,147 @@ int fast_math_subset_orbits_u64(
     stats->generator_count = generator_count;
     stats->item_count = subset_count;
     stats->class_count = orbits.size();
+    stats->elapsed_seconds =
+        std::chrono::duration<double>(Clock::now() - started).count();
+    return 0;
+  } catch (const std::exception& error) {
+    set_error(error_message, error_message_size, error.what());
+    return 1;
+  } catch (...) {
+    set_error(error_message, error_message_size, "unknown native error");
+    return 2;
+  }
+}
+
+int fast_math_subset_orbits_u64(
+    const std::uint64_t* subset_words,
+    std::size_t subset_count,
+    std::uint32_t word_count,
+    std::uint32_t atom_count,
+    const std::uint32_t* action_generators,
+    std::size_t generator_count,
+    std::uint64_t* class_ids,
+    std::uint64_t* representative_indices,
+    std::uint64_t* class_sizes,
+    std::uint64_t* class_count,
+    fast_math_ci_stats* stats,
+    char* error_message,
+    std::size_t error_message_size) {
+  return fast_math_subset_orbits_v2_u64(
+      subset_words,
+      subset_count,
+      word_count,
+      atom_count,
+      action_generators,
+      generator_count,
+      1,
+      class_ids,
+      representative_indices,
+      class_sizes,
+      class_count,
+      stats,
+      error_message,
+      error_message_size);
+}
+
+int fast_math_expand_atom_subsets_u64(
+    const std::uint64_t* subset_words,
+    std::size_t subset_count,
+    std::uint32_t subset_word_count,
+    std::uint32_t atom_count,
+    const std::uint64_t* atom_offsets,
+    const std::uint32_t* atom_elements,
+    std::size_t atom_element_count,
+    std::uint32_t group_order,
+    std::uint32_t thread_count,
+    std::uint64_t* element_words,
+    fast_math_ci_stats* stats,
+    char* error_message,
+    std::size_t error_message_size) {
+  try {
+    if (atom_count > 512 ||
+        subset_word_count != (atom_count + 63) / 64) {
+      throw std::invalid_argument("atom subset packed shape is invalid");
+    }
+    if (group_order == 0 || group_order > 512) {
+      throw std::invalid_argument(
+          "group order must be between one and 512");
+    }
+    if (atom_offsets == nullptr || stats == nullptr ||
+        (subset_count != 0 &&
+         (subset_words == nullptr || element_words == nullptr)) ||
+        (atom_element_count != 0 && atom_elements == nullptr)) {
+      throw std::invalid_argument("atom expansion pointer is null");
+    }
+    if (atom_offsets[0] != 0 ||
+        atom_offsets[atom_count] != atom_element_count) {
+      throw std::invalid_argument("atom offsets are invalid");
+    }
+    for (std::uint32_t atom = 0; atom < atom_count; ++atom) {
+      if (atom_offsets[atom] > atom_offsets[atom + 1]) {
+        throw std::invalid_argument("atom offsets are not monotone");
+      }
+    }
+    for (std::size_t index = 0; index < atom_element_count; ++index) {
+      if (atom_elements[index] >= group_order) {
+        throw std::invalid_argument(
+            "atom contains an out-of-range element");
+      }
+    }
+    if (atom_count != 0 && subset_count != 0) {
+      const auto final_bits = atom_count % 64;
+      const auto final_mask = final_bits == 0
+          ? ~std::uint64_t{0}
+          : (std::uint64_t{1} << final_bits) - 1;
+      for (std::size_t subset = 0; subset < subset_count; ++subset) {
+        if ((subset_words[
+                 subset * subset_word_count + subset_word_count - 1] &
+             ~final_mask) != 0) {
+          throw std::invalid_argument(
+              "subset contains an out-of-range atom");
+        }
+      }
+    }
+
+    set_error(error_message, error_message_size, "");
+    *stats = {};
+    const auto started = Clock::now();
+    const auto element_word_count = (group_order + 63) / 64;
+    fast_math_internal::parallel_for_static(
+        subset_count,
+        thread_count,
+        [&](std::size_t subset) {
+          auto* output = element_words + subset * element_word_count;
+          std::fill_n(output, element_word_count, 0);
+          for (std::uint32_t word = 0;
+               word < subset_word_count;
+               ++word) {
+            auto active =
+                subset_words[subset * subset_word_count + word];
+            while (active != 0) {
+              const auto bit =
+                  static_cast<std::uint32_t>(std::countr_zero(active));
+              const auto atom = word * 64 + bit;
+              if (atom >= atom_count) {
+                break;
+              }
+              for (auto offset = atom_offsets[atom];
+                   offset < atom_offsets[atom + 1];
+                   ++offset) {
+                const auto element = atom_elements[offset];
+                output[element / 64] |=
+                    std::uint64_t{1} << (element % 64);
+              }
+              active &= active - 1;
+            }
+          }
+        });
+    stats->degree = group_order;
+    stats->generator_count = atom_count;
+    stats->item_count = subset_count;
+    stats->thread_count =
+        fast_math_internal::parallel_worker_count(
+            subset_count, thread_count);
     stats->elapsed_seconds =
         std::chrono::duration<double>(Clock::now() - started).count();
     return 0;

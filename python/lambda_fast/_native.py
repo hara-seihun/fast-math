@@ -629,6 +629,32 @@ def load_library() -> ctypes.CDLL:
             library.fast_math_canonical_digraphs_nauty_u64.restype = (
                 ctypes.c_int
             )
+        if hasattr(library, "fast_math_canonical_digraphs_nauty_v2_u64"):
+            library.fast_math_canonical_digraphs_nauty_v2_u64.argtypes = [
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_uint8,
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.POINTER(ctypes.c_double),
+                ctypes.POINTER(ctypes.c_int32),
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.POINTER(NativeCanonicalGraphStats),
+                ctypes.POINTER(ctypes.c_char),
+                ctypes.c_size_t,
+            ]
+            library.fast_math_canonical_digraphs_nauty_v2_u64.restype = (
+                ctypes.c_int
+            )
         library.fast_math_digest_u64_rows_sha256.argtypes = [
             ctypes.POINTER(ctypes.c_uint64),
             ctypes.c_size_t,
@@ -1196,6 +1222,9 @@ def graph_common_neighbors_csr_native(
 def canonical_digraphs_nauty_native(
     adjacency_words: NDArray[np.uint64],
     vertex_colors: NDArray[np.uint32],
+    *,
+    threads: int = 0,
+    collect_automorphism_generators: bool = True,
 ) -> tuple[
     NDArray[np.uint32],
     NDArray[np.uint64],
@@ -1224,6 +1253,72 @@ def canonical_digraphs_nauty_native(
     generator_count = ctypes.c_uint64()
     stats = NativeCanonicalGraphStats()
     error = ctypes.create_string_buffer(1024)
+    maximum_generator_bytes = 512 << 20
+    generator_capacity = (
+        graph_count * vertex_count
+        if collect_automorphism_generators
+        else 0
+    )
+    use_v2 = (
+        hasattr(library, "fast_math_canonical_digraphs_nauty_v2_u64")
+        and generator_capacity * vertex_count * np.dtype(np.uint32).itemsize
+        <= maximum_generator_bytes
+    )
+    if use_v2:
+        generators = np.empty(
+            (generator_capacity, vertex_count),
+            dtype=np.uint32,
+        )
+        status = library.fast_math_canonical_digraphs_nauty_v2_u64(
+            _uint64_pointer(adjacency_words),
+            vertex_colors.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+            graph_count,
+            vertex_count,
+            word_count,
+            threads,
+            int(collect_automorphism_generators),
+            permutations.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+            _uint64_pointer(canonical_adjacency),
+            canonical_colors.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+            group_mantissas.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+            group_exponents.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)),
+            orbit_counts.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+            _uint64_pointer(generator_offsets),
+            generator_capacity,
+            (
+                generators.ctypes.data_as(
+                    ctypes.POINTER(ctypes.c_uint32)
+                )
+                if len(generators)
+                else ctypes.POINTER(ctypes.c_uint32)()
+            ),
+            ctypes.byref(generator_count),
+            ctypes.byref(stats),
+            error,
+            len(error),
+        )
+        if status == 0:
+            generators.resize(
+                (int(generator_count.value), vertex_count),
+                refcheck=False,
+            )
+            return (
+                permutations,
+                canonical_adjacency,
+                canonical_colors,
+                group_mantissas,
+                group_exponents,
+                orbit_counts,
+                generator_offsets,
+                generators,
+                stats,
+            )
+        message = error.value.decode("utf-8", errors="replace")
+        if "one-pass per-graph generator bound" not in message:
+            raise RuntimeError(
+                f"fast-math native error {status}: {message}"
+            )
+
     status = library.fast_math_canonical_digraphs_nauty_u64(
         _uint64_pointer(adjacency_words),
         vertex_colors.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
@@ -1277,6 +1372,9 @@ def canonical_digraphs_nauty_native(
             raise RuntimeError(
                 f"fast-math native error {status}: {message}"
             )
+    if not collect_automorphism_generators:
+        generator_offsets.fill(0)
+        generators = np.empty((0, vertex_count), dtype=np.uint32)
     return (
         permutations,
         canonical_adjacency,

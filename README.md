@@ -403,21 +403,23 @@ byte-for-byte in 0.00492 seconds, versus 2.576 seconds for Python.
 `libnauty` is available. It accepts packed directed adjacency and vertex
 colors, and returns canonical permutations, canonical adjacency/colors,
 batch-local isomorphism class IDs, automorphism group sizes, orbit counts,
-and generator permutations. The exhaustive Python backend is intentionally
-limited to order nine; it is a contract reference, not a production
-isomorphism engine.
+and optionally generator permutations. Native batches run independent nauty
+calls in parallel when `threads` is nonzero. Set
+`collect_automorphism_generators=False` for census routes that do not consume
+the generators. The exhaustive Python backend is intentionally limited to
+order nine; it is a contract reference, not a production isomorphism engine.
 
 The group and Cayley-CI contracts, array conventions, formulas, and complete
 13-group atlas replay are documented in `INTERFACE.md`. On the retained
-July 29, 2026 benchmark, the native 13-group pipeline is
-2.189193803654373x faster than the Python/NetworkX/`labelg` path while
-reproducing all 11,664 automorphism-orbit representatives and 9,606 graph
-fibers exactly. A representative order/orbit/membership query is
-988.2385755592494x faster than the mamba/GAP shellout. Individual native
-speedups are 65.49372709721749x for subset orbits, 17.507370773713617x for
-Cayley construction, 4.79640861075117x for derivative orbits,
-2.2548239349538224x for double cosets, and 26.57626382948064x for 2-WL plus
-intersection numbers.
+July 29, 2026 optimized benchmark, the native 13-group pipeline takes
+`0.12926016957499087` seconds while reproducing all 11,664
+automorphism-orbit representatives and 9,606 graph fibers exactly. This is
+`18.980477590430294x` faster than the prior native pipeline and
+`40.14429013199191x` faster than the retained Python/NetworkX/`labelg` path.
+A representative order/orbit/membership query remains
+`988.2385755592494x` faster than the mamba/GAP shellout. The exact Q60 shard
+benchmark improves `2.227806721290944x`, and refinement-only 2-WL improves
+the retained 256-graph residual `1.3529226759231057x`.
 
 ## Fixed-width digest contract
 

@@ -128,6 +128,8 @@ tools/run-compute.sh --slots 3 --memory-mb 2048 --timeout-seconds 900 \
   exact R-0805 convention documented in `INTERFACE.md`.
 - A 2-WL result is not complete without stable basic relations and verified
   intersection numbers.
+- Use `wl2_refinement` when only the stable partition is required; do not
+  present its result as a complete coherent configuration.
 - Every group/CI native kernel retains an executable Python/NumPy reference
   path. Compare full partitions or tensors, not only aggregate counts.
 - Keep atlas graph canonicalization on the existing batched nauty API; do not

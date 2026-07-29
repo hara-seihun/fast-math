@@ -8,6 +8,7 @@ import pytest
 from lambda_fast._native import load_library
 
 from fast_math.ci import (
+    atom_subsets_to_element_words,
     canonicalize_cayley_graphs,
     cayley_graphs,
     coherent_configuration,
@@ -19,6 +20,7 @@ from fast_math.ci import (
     generalized_dihedral_automorphisms,
     generalized_dihedral_group,
     graph_coherent_configuration,
+    graph_wl2_refinement,
     induced_atom_generators,
     inverse_closed_atoms,
     pack_subsets,
@@ -100,6 +102,96 @@ def test_native_and_reference_subset_orbits_match_exactly() -> None:
     np.testing.assert_array_equal(native.orbit_sizes, reference.orbit_sizes)
     np.testing.assert_array_equal(
         native.representative_of, reference.representative_of
+    )
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_complete_action_subset_orbits_match_generator_mode(
+    backend: str,
+) -> None:
+    action = np.asarray(
+        list(permutations(range(3))),
+        dtype=np.uint32,
+    )
+    complete = enumerate_subset_orbits(
+        action,
+        action_is_group=True,
+        backend=backend,
+    )
+    generated = enumerate_subset_orbits(
+        np.asarray(
+            [
+                [1, 0, 2],
+                [1, 2, 0],
+            ],
+            dtype=np.uint32,
+        ),
+        action_is_group=False,
+        backend=backend,
+    )
+    automatic = enumerate_subset_orbits(action, backend=backend)
+    np.testing.assert_array_equal(complete.class_ids, generated.class_ids)
+    np.testing.assert_array_equal(
+        complete.representative_indices,
+        generated.representative_indices,
+    )
+    np.testing.assert_array_equal(automatic.class_ids, complete.class_ids)
+    np.testing.assert_array_equal(automatic.orbit_sizes, complete.orbit_sizes)
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_complete_action_subset_orbits_reject_non_group(
+    backend: str,
+) -> None:
+    incomplete = np.asarray(
+        [
+            [0, 1, 2],
+            [1, 0, 2],
+            [0, 2, 1],
+        ],
+        dtype=np.uint32,
+    )
+    with pytest.raises((ValueError, RuntimeError), match="not closed"):
+        enumerate_subset_orbits(
+            incomplete,
+            action_is_group=True,
+            backend=backend,
+        )
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_complete_action_subset_orbits_support_multiword_masks(
+    backend: str,
+) -> None:
+    identity = np.arange(65, dtype=np.uint32)
+    swap = identity.copy()
+    swap[[0, 64]] = swap[[64, 0]]
+    subsets = pack_subsets(
+        [[], [0], [64], [0, 64]],
+        65,
+    )
+    complete = deduplicate_subset_orbits(
+        subsets,
+        np.stack((identity, swap)),
+        atom_count=65,
+        action_is_group=True,
+        backend=backend,
+    )
+    generated = deduplicate_subset_orbits(
+        subsets,
+        swap[np.newaxis, :],
+        atom_count=65,
+        action_is_group=False,
+        backend=backend,
+    )
+    np.testing.assert_array_equal(complete.class_ids, generated.class_ids)
+    np.testing.assert_array_equal(
+        complete.representative_words,
+        generated.representative_words,
+    )
+    np.testing.assert_array_equal(
+        complete.orbit_sizes,
+        generated.orbit_sizes,
     )
 
 
@@ -309,6 +401,29 @@ def test_native_and_reference_multiword_subset_orbits_match() -> None:
     np.testing.assert_array_equal(native.orbit_sizes, [1, 2, 1, 1])
 
 
+def test_native_and_reference_atom_subset_expansion_match() -> None:
+    atoms = (
+        np.asarray([0, 64], dtype=np.uint32),
+        np.asarray([1, 65, 129], dtype=np.uint32),
+        np.asarray([], dtype=np.uint32),
+    )
+    subsets = np.asarray([0, 1, 2, 3, 4, 7], dtype=np.uint64)
+    reference = atom_subsets_to_element_words(
+        subsets,
+        atoms,
+        group_order=130,
+        backend="reference",
+    )
+    native = atom_subsets_to_element_words(
+        subsets,
+        atoms,
+        group_order=130,
+        threads=3,
+        backend="native",
+    )
+    np.testing.assert_array_equal(native, reference)
+
+
 @pytest.mark.parametrize("backend", ["reference", "native"])
 def test_c5_coherent_configuration_has_three_basic_relations(
     backend: str,
@@ -348,6 +463,26 @@ def test_native_and_reference_wl2_match_exactly() -> None:
         native.relation_sizes,
         reference.relation_sizes,
     )
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_wl2_can_skip_intersection_numbers(backend: str) -> None:
+    adjacency = np.zeros((7, 7), dtype=np.uint8)
+    for vertex in range(7):
+        adjacency[vertex, (vertex + 1) % 7] = 1
+        adjacency[(vertex + 1) % 7, vertex] = 1
+    full = graph_coherent_configuration(adjacency, backend=backend)
+    refined = graph_wl2_refinement(
+        adjacency,
+        backend=backend,
+    )
+    np.testing.assert_array_equal(refined.relations, full.relations)
+    np.testing.assert_array_equal(
+        refined.relation_sizes,
+        full.relation_sizes,
+    )
+    assert refined.relation_count == full.relation_count
+    assert refined.iterations == full.iterations
 
 
 def test_wl2_handles_a_graph_of_order_a_few_hundred() -> None:

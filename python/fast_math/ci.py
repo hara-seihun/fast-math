@@ -15,6 +15,7 @@ from lambda_fast._native import NativeUnavailable
 from ._ci_native import (
     cayley_graphs_native,
     derivative_orbits_native,
+    expand_atom_subsets_native,
     intersection_numbers_native,
     subset_orbits_native,
     wl2_refine_native,
@@ -138,6 +139,23 @@ class CoherentConfiguration:
 
 
 @dataclass(frozen=True)
+class WL2Refinement:
+    relations: NDArray[np.uint32]
+    relation_count: int
+    relation_sizes: NDArray[np.uint64]
+    iterations: int
+    elapsed_seconds: float
+    backend: str
+
+    @property
+    def basic_sets(self) -> tuple[NDArray[np.uint32], ...]:
+        return tuple(
+            np.argwhere(self.relations == relation).astype(np.uint32)
+            for relation in range(self.relation_count)
+        )
+
+
+@dataclass(frozen=True)
 class GeneralizedDihedralGroup:
     moduli: tuple[int, ...]
     elements: tuple[tuple[tuple[int, ...], int], ...]
@@ -178,6 +196,8 @@ def _prepare_action(
 def _prepare_subset_words(
     subsets: ArrayLike,
     atom_count: int,
+    *,
+    require_unique: bool = True,
 ) -> NDArray[np.uint64]:
     if not isinstance(atom_count, Integral) or not 0 <= int(atom_count) <= 512:
         raise ValueError("atom_count must be an integer between zero and 512")
@@ -218,8 +238,13 @@ def _prepare_subset_words(
         final_bits = atom_count % 64
         if final_bits and np.any(prepared[:, -1] >> np.uint64(final_bits)):
             raise ValueError("subset contains an out-of-range atom")
-    if len({tuple(map(int, row)) for row in prepared}) != len(prepared):
-        raise ValueError("subset rows must be unique")
+    if require_unique and len(prepared) > 1:
+        if word_count == 1:
+            unique_count = len(np.unique(prepared[:, 0]))
+        else:
+            unique_count = len(np.unique(prepared, axis=0))
+        if unique_count != len(prepared):
+            raise ValueError("subset rows must be unique")
     return prepared
 
 
@@ -244,6 +269,7 @@ def _subset_orbits_reference(
     subsets: NDArray[np.uint64],
     generators: NDArray[np.uint32],
     atom_count: int,
+    action_is_group: bool | None,
 ) -> tuple[NDArray[np.uint64], NDArray[np.uint64], NDArray[np.uint64]]:
     index_of = {
         tuple(map(int, row)): index
@@ -251,15 +277,20 @@ def _subset_orbits_reference(
     }
     unseen = set(range(len(subsets)))
     raw_orbits: list[list[int]] = []
+    complete_action = _is_complete_action_reference(
+        generators,
+        atom_count,
+        required=action_is_group is True,
+    )
+    if action_is_group is False:
+        complete_action = False
     while unseen:
         seed = min(unseen)
-        orbit = {seed}
-        queue = deque([seed])
-        while queue:
-            current = queue.popleft()
+        if complete_action:
+            orbit = set()
             for generator in generators:
                 image = _permute_subset_reference(
-                    subsets[current],
+                    subsets[seed],
                     generator,
                     atom_count,
                 )
@@ -267,10 +298,26 @@ def _subset_orbits_reference(
                     raise ValueError(
                         "subset collection is not invariant under the action"
                     )
-                image_index = index_of[image]
-                if image_index not in orbit:
-                    orbit.add(image_index)
-                    queue.append(image_index)
+                orbit.add(index_of[image])
+        else:
+            orbit = {seed}
+            queue = deque([seed])
+            while queue:
+                current = queue.popleft()
+                for generator in generators:
+                    image = _permute_subset_reference(
+                        subsets[current],
+                        generator,
+                        atom_count,
+                    )
+                    if image not in index_of:
+                        raise ValueError(
+                            "subset collection is not invariant under the action"
+                        )
+                    image_index = index_of[image]
+                    if image_index not in orbit:
+                        orbit.add(image_index)
+                        queue.append(image_index)
         unseen.difference_update(orbit)
         raw_orbits.append(sorted(orbit))
     raw_orbits.sort(
@@ -287,16 +334,51 @@ def _subset_orbits_reference(
     return class_ids, representatives, sizes
 
 
+def _is_complete_action_reference(
+    action: NDArray[np.uint32],
+    degree: int,
+    *,
+    required: bool,
+) -> bool:
+    elements = {tuple(map(int, row)) for row in action}
+    if len(elements) != len(action):
+        if required:
+            raise ValueError("complete action rows must be unique")
+        return False
+    identity = tuple(range(degree))
+    if identity not in elements:
+        if required:
+            raise ValueError("complete action must contain the identity")
+        return False
+    for left in action:
+        for right in action:
+            product_row = tuple(int(left[int(image)]) for image in right)
+            if product_row not in elements:
+                if required:
+                    raise ValueError(
+                        "complete action is not closed under composition"
+                    )
+                return False
+    return True
+
+
 def deduplicate_subset_orbits(
     subsets: ArrayLike,
     action_generators: ArrayLike,
     *,
     atom_count: int,
+    action_is_group: bool | None = None,
     backend: CIBackend = "auto",
 ) -> SubsetOrbitPartition:
-    """Partition an invariant packed subset collection under a generated action."""
+    """Partition invariant subsets under generators or a complete group action."""
     _validate_backend(backend)
-    words = _prepare_subset_words(subsets, atom_count)
+    if action_is_group not in {None, False, True}:
+        raise ValueError("action_is_group must be true, false, or None")
+    words = _prepare_subset_words(
+        subsets,
+        atom_count,
+        require_unique=backend == "reference",
+    )
     generators = _prepare_action(action_generators, int(atom_count))
     if atom_count == 0:
         if len(words) != 1:
@@ -317,6 +399,7 @@ def deduplicate_subset_orbits(
                 words,
                 generators,
                 int(atom_count),
+                0 if action_is_group is None else (2 if action_is_group else 1),
             )
         except (NativeUnavailable, OSError, AttributeError):
             if backend == "native":
@@ -334,11 +417,19 @@ def deduplicate_subset_orbits(
             )
     if backend == "native":
         raise NativeUnavailable("fast-math native library is unavailable")
+    if len(words) > 1:
+        if words.shape[1] == 1:
+            unique_count = len(np.unique(words[:, 0]))
+        else:
+            unique_count = len(np.unique(words, axis=0))
+        if unique_count != len(words):
+            raise ValueError("subset rows must be unique")
     started = perf_counter()
     class_ids, indices, sizes = _subset_orbits_reference(
         words,
         generators,
         int(atom_count),
+        action_is_group,
     )
     return SubsetOrbitPartition(
         subset_words=words,
@@ -357,6 +448,7 @@ def enumerate_subset_orbits(
     *,
     atom_count: int | None = None,
     max_subsets: int = 1 << 24,
+    action_is_group: bool | None = None,
     backend: CIBackend = "auto",
 ) -> SubsetOrbitPartition:
     """Enumerate the complete powerset quotient when it fits a bounded batch."""
@@ -381,6 +473,7 @@ def enumerate_subset_orbits(
         subsets,
         action,
         atom_count=int(atom_count),
+        action_is_group=action_is_group,
         backend=backend,
     )
 
@@ -508,20 +601,65 @@ def atom_subsets_to_element_words(
     atoms: Sequence[ArrayLike] | InverseClosedAtoms,
     *,
     group_order: int,
+    threads: int = 0,
+    backend: CIBackend = "auto",
 ) -> NDArray[np.uint64]:
-    subsets = _prepare_subset_words(subset_words, len(atoms))
+    _validate_backend(backend)
+    if not isinstance(group_order, Integral) or not 1 <= int(
+        group_order
+    ) <= 512:
+        raise ValueError("group_order must be an integer between one and 512")
+    if not isinstance(threads, Integral) or int(threads) < 0:
+        raise ValueError("threads must be a nonnegative integer")
+    group_order = int(group_order)
+    subsets = _prepare_subset_words(
+        subset_words,
+        len(atoms),
+        require_unique=False,
+    )
+    atom_rows: list[NDArray[np.uint32]] = []
+    offsets = np.zeros(len(atoms) + 1, dtype=np.uint64)
+    for atom_index, atom_values in enumerate(atoms):
+        values = np.asarray(atom_values)
+        if values.ndim != 1 or not np.issubdtype(values.dtype, np.integer):
+            raise ValueError("atoms must be one-dimensional integer arrays")
+        if np.any(values < 0) or np.any(values >= group_order):
+            raise ValueError("atom contains an out-of-range element")
+        row = np.ascontiguousarray(values, dtype=np.uint32)
+        atom_rows.append(row)
+        offsets[atom_index + 1] = offsets[atom_index] + len(row)
+    elements = np.ascontiguousarray(
+        np.concatenate(atom_rows)
+        if atom_rows
+        else np.empty(0, dtype=np.uint32),
+        dtype=np.uint32,
+    )
+    if backend != "reference":
+        try:
+            element_words, _ = expand_atom_subsets_native(
+                subsets,
+                offsets,
+                elements,
+                group_order,
+                int(threads),
+            )
+        except (NativeUnavailable, OSError, AttributeError):
+            if backend == "native":
+                raise
+        else:
+            return element_words
+    if backend == "native":
+        raise NativeUnavailable("fast-math native library is unavailable")
     element_words = np.zeros(
         (len(subsets), (group_order + 63) // 64),
         dtype=np.uint64,
     )
     for subset_index, subset in enumerate(subsets):
-        for atom_index, atom_values in enumerate(atoms):
+        for atom_index, atom_values in enumerate(atom_rows):
             if not int(subset[atom_index // 64]) & (1 << (atom_index % 64)):
                 continue
-            for element in np.asarray(atom_values, dtype=np.uint32):
+            for element in atom_values:
                 value = int(element)
-                if not 0 <= value < group_order:
-                    raise ValueError("atom contains an out-of-range element")
                 element_words[subset_index, value // 64] |= np.uint64(
                     1 << (value % 64)
                 )
@@ -531,11 +669,16 @@ def atom_subsets_to_element_words(
 def expand_atom_masks(
     atom_masks: ArrayLike,
     atoms: InverseClosedAtoms,
+    *,
+    threads: int = 0,
+    backend: CIBackend = "auto",
 ) -> NDArray[np.uint64]:
     return atom_subsets_to_element_words(
         atom_masks,
         atoms,
         group_order=atoms.order,
+        threads=threads,
+        backend=backend,
     )
 
 
@@ -559,12 +702,17 @@ def _prepare_connections(
     connection_sets: ArrayLike,
     order: int,
 ) -> NDArray[np.uint64]:
-    return _prepare_subset_words(connection_sets, order)
+    return _prepare_subset_words(
+        connection_sets,
+        order,
+        require_unique=False,
+    )
 
 
 def _validate_connection_sets(
     connections: NDArray[np.uint64],
     inverse_indices: ArrayLike | None,
+    order: int,
     identity: int,
     require_inverse_closed: bool,
 ) -> NDArray[np.uint32] | None:
@@ -575,27 +723,32 @@ def _validate_connection_sets(
     if inverse_indices is None:
         return None
     inverses = np.asarray(inverse_indices)
-    order = connections.shape[1] * 64
-    actual_order = len(inverses)
-    if inverses.shape != (actual_order,) or not np.issubdtype(
+    if inverses.shape != (order,) or not np.issubdtype(
         inverses.dtype, np.integer
     ):
-        raise ValueError("inverse_indices must be one-dimensional integers")
-    if np.any(inverses < 0) or np.any(inverses >= actual_order):
+        raise ValueError(
+            "inverse_indices must contain one integer per group element"
+        )
+    if np.any(inverses < 0) or np.any(inverses >= order):
         raise ValueError("inverse index is out of range")
     prepared = np.ascontiguousarray(inverses, dtype=np.uint32)
     if require_inverse_closed:
-        for connection in connections:
-            for element in range(actual_order):
-                present = bool(
-                    int(connection[element // 64]) & (1 << (element % 64))
-                )
-                inverse = int(prepared[element])
-                inverse_present = bool(
-                    int(connection[inverse // 64]) & (1 << (inverse % 64))
-                )
-                if present != inverse_present:
-                    raise ValueError("connection set is not inverse-closed")
+        elements = np.arange(order, dtype=np.uint32)
+        word_indices = elements // np.uint32(64)
+        shifts = np.asarray(elements % np.uint32(64), dtype=np.uint64)
+        rows_per_chunk = max(
+            1,
+            (32 << 20)
+            // (order * np.dtype(np.uint64).itemsize),
+        )
+        for begin in range(0, len(connections), rows_per_chunk):
+            chunk = connections[begin : begin + rows_per_chunk]
+            present = (
+                (chunk[:, word_indices] >> shifts[np.newaxis, :])
+                & np.uint64(1)
+            ).astype(np.bool_)
+            if np.any(present != present[:, prepared]):
+                raise ValueError("connection set is not inverse-closed")
     return prepared
 
 
@@ -661,6 +814,7 @@ def cayley_graphs(
     _validate_connection_sets(
         connections,
         inverse_indices,
+        len(table),
         int(identity),
         require_inverse_closed,
     )
@@ -710,6 +864,7 @@ def canonicalize_cayley_graphs(
     require_inverse_closed: bool = True,
     require_undirected: bool | None = None,
     threads: int = 0,
+    collect_automorphism_generators: bool = True,
     graph_backend: CIBackend = "auto",
     construction_backend: CIBackend | None = None,
     canonical_backend: CIBackend = "auto",
@@ -736,6 +891,10 @@ def canonicalize_cayley_graphs(
     canonical = canonicalize_colored_digraphs(
         graphs.adjacency_words,
         colors,
+        threads=threads,
+        collect_automorphism_generators=(
+            collect_automorphism_generators
+        ),
         backend=canonical_backend,
     )
     return CanonicalCayleyBatch(graphs=graphs, canonical=canonical)
@@ -1131,13 +1290,12 @@ def _intersection_numbers_reference(
     return tensor
 
 
-def coherent_configuration(
+def wl2_refinement(
     initial_relations: ArrayLike,
     *,
-    max_tensor_entries: int = 100_000_000,
     backend: CIBackend = "auto",
-) -> CoherentConfiguration:
-    """Run exact stable 2-WL and return basic relations and intersection numbers."""
+) -> WL2Refinement:
+    """Run exact stable 2-WL without constructing intersection numbers."""
     _validate_backend(backend)
     relations = _prepare_relations(initial_relations)
     started = perf_counter()
@@ -1148,59 +1306,76 @@ def coherent_configuration(
             if backend == "native":
                 raise
         else:
-            entries = relation_count**3
-            if entries > max_tensor_entries:
-                raise ValueError(
-                    f"intersection tensor needs {entries} entries"
-                )
-            tensor, intersection_stats = intersection_numbers_native(
-                stable,
-                relation_count,
-            )
-            return CoherentConfiguration(
+            return WL2Refinement(
                 relations=stable,
                 relation_count=relation_count,
                 relation_sizes=np.bincount(
                     stable.ravel(),
                     minlength=relation_count,
                 ).astype(np.uint64),
-                intersection_numbers=tensor,
                 iterations=int(refine_stats.iteration_count),
-                elapsed_seconds=(
-                    float(refine_stats.elapsed_seconds)
-                    + float(intersection_stats.elapsed_seconds)
-                ),
+                elapsed_seconds=float(refine_stats.elapsed_seconds),
                 backend="native",
             )
     if backend == "native":
         raise NativeUnavailable("fast-math native library is unavailable")
     stable, iterations = _wl2_reference(relations)
     relation_count = int(stable.max()) + 1
-    entries = relation_count**3
-    if entries > max_tensor_entries:
-        raise ValueError(f"intersection tensor needs {entries} entries")
-    tensor = _intersection_numbers_reference(stable, relation_count)
-    return CoherentConfiguration(
+    return WL2Refinement(
         relations=stable,
         relation_count=relation_count,
         relation_sizes=np.bincount(
             stable.ravel(),
             minlength=relation_count,
         ).astype(np.uint64),
-        intersection_numbers=tensor,
         iterations=iterations,
         elapsed_seconds=perf_counter() - started,
         backend="reference",
     )
 
 
-def graph_coherent_configuration(
-    adjacency_words: ArrayLike,
+def coherent_configuration(
+    initial_relations: ArrayLike,
     *,
     max_tensor_entries: int = 100_000_000,
     backend: CIBackend = "auto",
 ) -> CoherentConfiguration:
-    """Generate the coherent configuration of one loopless graph."""
+    """Run stable 2-WL and verify all intersection numbers."""
+    refinement = wl2_refinement(initial_relations, backend=backend)
+    entries = refinement.relation_count**3
+    if entries > max_tensor_entries:
+        raise ValueError(f"intersection tensor needs {entries} entries")
+    if refinement.backend == "native":
+        tensor, intersection_stats = intersection_numbers_native(
+            refinement.relations,
+            refinement.relation_count,
+        )
+        intersection_seconds = float(
+            intersection_stats.elapsed_seconds
+        )
+    else:
+        started = perf_counter()
+        tensor = _intersection_numbers_reference(
+            refinement.relations,
+            refinement.relation_count,
+        )
+        intersection_seconds = perf_counter() - started
+    return CoherentConfiguration(
+        relations=refinement.relations,
+        relation_count=refinement.relation_count,
+        relation_sizes=refinement.relation_sizes,
+        intersection_numbers=tensor,
+        iterations=refinement.iterations,
+        elapsed_seconds=(
+            refinement.elapsed_seconds + intersection_seconds
+        ),
+        backend=refinement.backend,
+    )
+
+
+def _graph_initial_relations(
+    adjacency_words: ArrayLike,
+) -> NDArray[np.uint32]:
     adjacency = np.asarray(adjacency_words)
     if adjacency.ndim == 2 and adjacency.shape[0] == adjacency.shape[1]:
         if not np.all((adjacency == 0) | (adjacency == 1)):
@@ -1223,8 +1398,30 @@ def graph_coherent_configuration(
     relations = np.full(present.shape, 2, dtype=np.uint32)
     relations[present] = 1
     np.fill_diagonal(relations, 0)
+    return relations
+
+
+def graph_wl2_refinement(
+    adjacency_words: ArrayLike,
+    *,
+    backend: CIBackend = "auto",
+) -> WL2Refinement:
+    """Run exact stable 2-WL on one loopless graph."""
+    return wl2_refinement(
+        _graph_initial_relations(adjacency_words),
+        backend=backend,
+    )
+
+
+def graph_coherent_configuration(
+    adjacency_words: ArrayLike,
+    *,
+    max_tensor_entries: int = 100_000_000,
+    backend: CIBackend = "auto",
+) -> CoherentConfiguration:
+    """Generate the coherent configuration of one loopless graph."""
     return coherent_configuration(
-        relations,
+        _graph_initial_relations(adjacency_words),
         max_tensor_entries=max_tensor_entries,
         backend=backend,
     )
@@ -1241,6 +1438,7 @@ __all__ = [
     "InverseClosedAtoms",
     "PermutationDoubleCosetPartition",
     "SubsetOrbitPartition",
+    "WL2Refinement",
     "atom_subsets_to_element_words",
     "canonicalize_cayley_graphs",
     "cayley_graphs",
@@ -1254,9 +1452,11 @@ __all__ = [
     "generalized_dihedral_automorphisms",
     "generalized_dihedral_group",
     "graph_coherent_configuration",
+    "graph_wl2_refinement",
     "induced_atom_action",
     "induced_atom_generators",
     "inverse_closed_atoms",
     "pack_subsets",
     "permutation_double_cosets",
+    "wl2_refinement",
 ]
