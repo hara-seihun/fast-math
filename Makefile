@@ -1,4 +1,6 @@
-PYTHON ?= $(shell if [ -x .venv/bin/python ]; then printf '%s' .venv/bin/python; elif [ -x ../.venv/bin/python ]; then printf '%s' ../.venv/bin/python; else command -v python3; fi)
+PYTHON ?= python3
+SYSTEM_PKG_CONFIG_PATH ?= /run/current-system/sw/lib/pkgconfig
+export PKG_CONFIG_PATH := $(SYSTEM_PKG_CONFIG_PATH)$(if $(PKG_CONFIG_PATH),:$(PKG_CONFIG_PATH))
 COMPUTE := tools/run-compute.sh
 LIBRARY = $(shell find build -maxdepth 3 -type f \( -name 'libfast_math.dylib' -o -name 'libfast_math.so' -o -name 'fast_math.dll' \) 2>/dev/null | head -1)
 

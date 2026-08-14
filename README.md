@@ -80,17 +80,29 @@ order. It never materializes the 100-million-element output arrays.
 
 ## Build and test
 
-From this directory:
+On the canonical NixOS research host, FLINT/Arb, nauty, NumPy, NetworkX, and
+pytest are declarative system dependencies. From this directory:
 
 ```sh
-uv sync --dev
 make test
 ```
 
-This builds `libfast_math` plus the `liblambda_fast` compatibility link and
-runs the native CTest and Python parity suites. When the checkout is nested in
-the research laboratory, sustained commands automatically use its governed
-compute scheduler; standalone clones execute normally. Coverage includes
+This builds an x86-64 library tuned for the current Ryzen CPU, including the
+FLINT/Arb and nauty kernels, creates the `liblambda_fast` compatibility link,
+and runs the native CTest and Python parity suites. Do not create a local
+wheel-based virtual environment on NixOS; the system Python owns the patched
+native dependencies. Set `PYTHON=/path/to/python` explicitly when testing an
+independent environment.
+
+Research agents can invoke the deployed build without environment setup:
+
+```sh
+cd /home/kenan/projects-research
+./tools/fast-math -c 'import fast_math; print(fast_math.__file__)'
+./tools/fast-math path/to/research_script.py
+```
+
+The launcher supplies `PYTHONPATH` and the native library paths. Coverage includes
 exhaustive behavior over every labeled graph through order five, invariant
 parity over all 32,768 labeled order-six graphs, 64-vertex boundaries,
 arithmetic identities, invalid inputs, input immutability, graph and

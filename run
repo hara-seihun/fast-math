@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(unset CDPATH; cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ -z "${FAST_MATH_LIBRARY:-}" ]]; then
+  for candidate in \
+    "$root/build/libfast_math.so" \
+    "$root/build/libfast_math.dylib" \
+    "$root/build/fast_math.dll"
+  do
+    if [[ -f "$candidate" ]]; then
+      FAST_MATH_LIBRARY="$candidate"
+      break
+    fi
+  done
+fi
+
+if [[ -z "${FAST_MATH_LIBRARY:-}" || ! -f "$FAST_MATH_LIBRARY" ]]; then
+  printf 'fast-math: native library is not built; run make test in %s\n' "$root" >&2
+  exit 1
+fi
+
+export FAST_MATH_LIBRARY
+export LAMBDA_FAST_LIBRARY="${LAMBDA_FAST_LIBRARY:-$FAST_MATH_LIBRARY}"
+export PYTHONPATH="$root/python${PYTHONPATH:+:$PYTHONPATH}"
+
+exec python3 "$@"

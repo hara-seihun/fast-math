@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from hashlib import sha256
 import importlib.util
 import json
 from pathlib import Path
@@ -31,21 +32,14 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-ROOT = Path(__file__).resolve().parents[1]
-ATLAS_ROUTE = (
-    ROOT.parent
-    / "problems"
-    / "cayley-ci"
-    / "scratch"
-    / "atlas--dihedral-generalized-dihedral-first-exact-defect-atlas"
-)
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def _load_builder():
     name = "_fast_math_ci_atlas_builder"
     spec = importlib.util.spec_from_file_location(
         name,
-        ATLAS_ROUTE / "build_atlas.py",
+        FIXTURES / "ci_atlas_builder.py",
     )
     if spec is None or spec.loader is None:
         raise RuntimeError("could not load the retained atlas builder")
@@ -85,20 +79,9 @@ def _fiber_bytes(rows: list[dict[str, object]]) -> bytes:
 
 def test_native_pipeline_matches_complete_retained_ci_atlas() -> None:
     builder = _load_builder()
-    atlas = json.loads(
-        (ATLAS_ROUTE / "build" / "atlas.json").read_text(encoding="ascii")
-    )
-    summaries = {
-        row["group"]: row
-        for row in atlas["groups"]
-    }
-    rows_by_group: dict[str, list[dict[str, object]]] = defaultdict(list)
-    with (ATLAS_ROUTE / "build" / "fibers.jsonl").open(
-        encoding="ascii"
-    ) as handle:
-        for line in handle:
-            row = json.loads(line)
-            rows_by_group[row["group"]].append(row)
+    oracle = json.loads(
+        (FIXTURES / "ci_atlas_oracle.json").read_text(encoding="ascii")
+    )["groups"]
 
     checked_orbits = 0
     checked_fibers = 0
@@ -156,11 +139,13 @@ def test_native_pipeline_matches_complete_retained_ci_atlas() -> None:
             for fiber in observed_fibers.values()
         ]
 
-        expected_rows = rows_by_group[group_spec.slug]
-        summary = summaries[group_spec.slug]
-        assert len(masks) == summary["ci_orbits"]
-        assert len(observed_rows) == summary["unlabeled_cayley_graphs"]
-        assert _fiber_bytes(observed_rows) == _fiber_bytes(expected_rows)
+        expected = oracle[group_spec.slug]
+        assert len(masks) == expected["ci_orbits"]
+        assert len(observed_rows) == expected["unlabeled_cayley_graphs"]
+        assert (
+            sha256(_fiber_bytes(observed_rows)).hexdigest()
+            == expected["fiber_sha256"]
+        )
         checked_orbits += len(masks)
         checked_fibers += len(observed_rows)
 

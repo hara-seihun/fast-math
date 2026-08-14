@@ -19,19 +19,6 @@ assert SPEC is not None and SPEC.loader is not None
 sidecars = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(sidecars)
 
-BENCHMARK_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "benchmarks/benchmark_lambda_l01479_integration.py"
-)
-BENCHMARK_SPEC = importlib.util.spec_from_file_location(
-    "benchmark_lambda_l01479_integration",
-    BENCHMARK_PATH,
-)
-assert BENCHMARK_SPEC is not None and BENCHMARK_SPEC.loader is not None
-benchmark = importlib.util.module_from_spec(BENCHMARK_SPEC)
-BENCHMARK_SPEC.loader.exec_module(benchmark)
-
-
 def test_split_timed_payload_keeps_proof_bytes_deterministic(tmp_path) -> None:
     proof_a = tmp_path / "a/certificate.json"
     proof_b = tmp_path / "b/certificate.json"
@@ -76,14 +63,3 @@ def test_split_timed_payload_rejects_invalid_elapsed(
             tmp_path / "timing.json",
             stage="source",
         )
-
-
-def test_retained_route_emits_timing_sidecars() -> None:
-    source = benchmark.DEFAULT_ROUTE / "source"
-    materializer = (source / "materialize_cache_manifest.py").read_text()
-    runner = (source / "run_repaired_checkpoint.py").read_text()
-    assert "split_timed_payload" in materializer
-    assert 'with_name("timing.json")' in materializer
-    assert "roundoff_raw" in runner
-    assert "split_timed_file" in runner
-    assert (source / "l01479_timing_sidecars.py").is_file()

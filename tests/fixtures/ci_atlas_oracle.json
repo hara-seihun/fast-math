@@ -1,0 +1,75 @@
+{
+  "groups": {
+    "D10": {
+      "ci_orbits": 20,
+      "fiber_sha256": "4b81b8f5d7b85e53b7be125f12b6b124e501947469d1c2dcc1cb34d10ac97f1b",
+      "unlabeled_cayley_graphs": 20
+    },
+    "D12": {
+      "ci_orbits": 104,
+      "fiber_sha256": "2d507c80f3c096be3e157005d26f4feaf145c8d8083e10db85788a4ddb5d8aac",
+      "unlabeled_cayley_graphs": 64
+    },
+    "D14": {
+      "ci_orbits": 56,
+      "fiber_sha256": "e31347bebe94f8afee85c68d1119d12491a118ba38acc155841b41e1a84395fe",
+      "unlabeled_cayley_graphs": 56
+    },
+    "D16": {
+      "ci_orbits": 312,
+      "fiber_sha256": "456f14450bc4e94825646d8520d195171bc4d84e936832fe42ba54acf0eda46a",
+      "unlabeled_cayley_graphs": 204
+    },
+    "D18": {
+      "ci_orbits": 272,
+      "fiber_sha256": "1df86382f15e9939a0686bf314832b5393b03d36dabec6c0377d6cc2ec964e51",
+      "unlabeled_cayley_graphs": 272
+    },
+    "D20": {
+      "ci_orbits": 1296,
+      "fiber_sha256": "aaeeb908fad62d98b1b1129d0caa5d81dd2586e4a9d1ee3d868e2a9614825f44",
+      "unlabeled_cayley_graphs": 940
+    },
+    "D22": {
+      "ci_orbits": 816,
+      "fiber_sha256": "a7886045793667b2b17d041afed470577e41d1f74228592d5f7206aa05bf5ffc",
+      "unlabeled_cayley_graphs": 816
+    },
+    "D24": {
+      "ci_orbits": 8640,
+      "fiber_sha256": "c0b47aa6f558b7a8467027f7ad776d17ee6ddda01cd8d8fce4dee16a6ab82a74",
+      "unlabeled_cayley_graphs": 7096
+    },
+    "D4": {
+      "ci_orbits": 4,
+      "fiber_sha256": "83c16665baf6c9eabe361e030d624ac8d2bde6443ca817ee8d21e6c01234cc33",
+      "unlabeled_cayley_graphs": 4
+    },
+    "D6": {
+      "ci_orbits": 8,
+      "fiber_sha256": "fa9a51cc76f9642b32f56ccfaebd469b2ea4ff6ce4a4b792b28c7c1010ad1861",
+      "unlabeled_cayley_graphs": 8
+    },
+    "D8": {
+      "ci_orbits": 24,
+      "fiber_sha256": "19bd172d8581d58ccb9d1e602b0d8b93adc6295455810c78c57b20a463133f80",
+      "unlabeled_cayley_graphs": 14
+    },
+    "Dih-C2xC2": {
+      "ci_orbits": 10,
+      "fiber_sha256": "19c8f2463d0fa48b9efc8c756b593d247999bac56f3531d6e7457a896b740337",
+      "unlabeled_cayley_graphs": 10
+    },
+    "Dih-C3xC3": {
+      "ci_orbits": 102,
+      "fiber_sha256": "fb577457316ec9102afae5983f14c8e06e24311e86e869c0dbf0976b616cbad2",
+      "unlabeled_cayley_graphs": 102
+    }
+  },
+  "provenance": {
+    "legacy_result": "R-0703",
+    "representation": "SHA-256 of normalized complete atlas fibers",
+    "research_revision": "c58e1ea3017c70ea8f15531a7abf46d04f4e58cb"
+  },
+  "schema": 1
+}
