@@ -216,7 +216,7 @@ portable performance promises.
 | Metal affine contour metrics, 85 x 13,661 points | 0.00159 s | 4.97x NumPy complex64 | benchmark record |
 | Metal affine contour metrics, 4,096 x 13,661 points | 0.0343 s | 10.88x NumPy complex64 | benchmark record |
 | CUDA affine contour metrics, 1,024 x 4,097 synthetic points | 0.00271 s | 25.2x NumPy complex64 | Modal L4 validation |
-| HIP affine contour metrics, local gfx1151 shape | pending | pending | `make hip-test` receipt |
+| HIP affine contour metrics, 4,096 x 13,661 points on local gfx1151 | 0.0195 s | 28.27x current NumPy affine route; 1.76x raw wall-time advantage over the retained 0.0343 s Metal shape | local `make hip-benchmark` receipt; zero winding disagreements |
 
 All three fused runs reproduce the retained acceptance-driving
 `two_level_upper` exactly at binary64 output precision. The original
@@ -300,8 +300,12 @@ metrics = plan.contour_metrics(
 The retained full-strip packet has 20 directions and 13,661 contour points.
 Across populations from 85 through 4,096, the Metal plan was 4.97x to 10.88x
 faster than two-thread NumPy complex64 end to end, including step upload and
-metric download, with no winding disagreements in the benchmark. This is a
-fast ranking gate, not a replacement for float-float, complex128, or rigorous
+metric download, with no winding disagreements in the benchmark. On the local
+Strix Halo, HIP reaches 0.0195 seconds for the 4,096 x 13,661 shape, 28.27x
+faster than the current NumPy affine route and 1.76x faster in raw wall time
+than the retained 0.0343-second Metal result. These are different GPUs, so the
+cross-device comparison is descriptive rather than a portable promise. This is
+a fast ranking gate, not a replacement for float-float, complex128, or rigorous
 high-precision validation when the route requires them.
 
 `AffineNumpyPlan`, `AffineMetalPlan`, `AffineCudaPlan`, and `AffineHipPlan`

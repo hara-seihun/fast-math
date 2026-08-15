@@ -60,7 +60,7 @@ def main() -> None:
     actual, hip_times = timed(
         args.repeats,
         lambda: plan.contour_metrics(
-            steps, edge_slice=edge_slice, batch_size=512
+            steps, edge_slice=edge_slice, batch_size=None
         ),
     )
     record = {
