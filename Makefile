@@ -4,13 +4,22 @@ export PKG_CONFIG_PATH := $(SYSTEM_PKG_CONFIG_PATH)$(if $(PKG_CONFIG_PATH),:$(PK
 COMPUTE := tools/run-compute.sh
 LIBRARY = $(shell find build -maxdepth 3 -type f \( -name 'libfast_math.dylib' -o -name 'libfast_math.so' -o -name 'fast_math.dll' \) 2>/dev/null | head -1)
 
-.PHONY: configure build test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
+.PHONY: configure build hip hip-test hip-benchmark test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
 
 configure:
 	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
 build: configure
 	$(COMPUTE) --slots 4 --memory-mb 2048 --timeout-seconds 900 --label fast-math-build -- cmake --build build --parallel 4
+
+hip:
+	$(COMPUTE) --slots 1 --memory-mb 2048 --timeout-seconds 900 --label fast-math-hip-build -- tools/build-hip.sh
+
+hip-test: hip
+	$(COMPUTE) --slots 1 --memory-mb 4096 --timeout-seconds 900 --label fast-math-hip-tests -- env PYTHONPATH=python FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) -m pytest -q tests/test_hip.py
+
+hip-benchmark: hip
+	$(COMPUTE) --slots 1 --memory-mb 4096 --timeout-seconds 900 --label fast-math-hip-benchmark -- env PYTHONPATH=python FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) benchmarks/benchmark_hip_affine.py --output benchmarks/results/hip-affine-local.json
 
 test: build
 	$(COMPUTE) --slots 5 --memory-mb 4096 --timeout-seconds 1800 --label fast-math-tests -- sh -c 'ctest --test-dir build --output-on-failure && env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) -m pytest -q'

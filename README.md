@@ -44,6 +44,10 @@ worker pools by default, with a build-time standard-thread fallback.
 - `fast_math.cuda`: the matching CuPy/CUDA affine-plan contract for Modal and
   other NVIDIA targets, with the same retained arrays, batching, values, and
   compact contour metrics.
+- `fast_math.hip`: the ROCm/HIP affine-plan contract for the local AMD Strix
+  Halo GPU. It uses native HIP kernels for affine populations and fused
+  contour metrics, with the same NumPy parity contract and automatic Linux
+  dispatch.
 - `fast_math.arithmetic`: finite Dirichlet inverse construction.
 - `fast_math.sparse`: deterministic exact rank and pivot witnesses for CSR
   matrices over 32-bit prime fields, including ForkUnion-parallel multi-prime
@@ -118,7 +122,9 @@ modal run modal_validation.py --target all --gpu L4
 
 The CPU validation builds the complete native library on Linux x86_64 with
 GCC, runs CTest, and runs the Python suite. The GPU validation runs the shared
-affine-plan parity suite on an NVIDIA GPU. The explicit ARM NEON kernels in the
+affine-plan parity suite on an NVIDIA GPU. On the local AMD host, `make hip-test`
+builds the `gfx1151` HIP backend and runs the same full-value and fused-metric
+parity checks against NumPy. The explicit ARM NEON kernels in the
 Taylor and moment paths retain scalar fallbacks, while Linux builds may use
 the host x86 instruction set through `-march=native`.
 
@@ -150,6 +156,7 @@ make finufft-cells
 make finufft-canopy
 make finufft-prime-shell
 make metal
+make hip-test
 make filon
 ```
 
@@ -209,6 +216,7 @@ portable performance promises.
 | Metal affine contour metrics, 85 x 13,661 points | 0.00159 s | 4.97x NumPy complex64 | benchmark record |
 | Metal affine contour metrics, 4,096 x 13,661 points | 0.0343 s | 10.88x NumPy complex64 | benchmark record |
 | CUDA affine contour metrics, 1,024 x 4,097 synthetic points | 0.00271 s | 25.2x NumPy complex64 | Modal L4 validation |
+| HIP affine contour metrics, local gfx1151 shape | pending | pending | `make hip-test` receipt |
 
 All three fused runs reproduce the retained acceptance-driving
 `two_level_upper` exactly at binary64 output precision. The original
@@ -270,7 +278,7 @@ state.
 
 Fast Math is available under the MIT License.
 
-## Metal and CUDA affine plans
+## Metal, CUDA, and HIP affine plans
 
 The portable NumPy backend is always available. Install a GPU backend with
 `pip install 'fast-math[metal]'` on Apple silicon or
@@ -296,13 +304,14 @@ metric download, with no winding disagreements in the benchmark. This is a
 fast ranking gate, not a replacement for float-float, complex128, or rigorous
 high-precision validation when the route requires them.
 
-`AffineNumpyPlan`, `AffineMetalPlan`, and `AffineCudaPlan` share the same
-validation, batching, value, cache-management, and `contour_metrics` contract.
-Pass `backend="numpy"`, `"metal"`, or `"cuda"` to force a route; `auto`
-prefers Metal on macOS, CUDA on other GPU hosts, and otherwise uses NumPy.
-The CUDA implementation has been parity-tested on a Modal NVIDIA L4; that
-check establishes deployment portability, not a cross-device performance
-claim.
+`AffineNumpyPlan`, `AffineMetalPlan`, `AffineCudaPlan`, and `AffineHipPlan`
+share the same validation, batching, value, cache-management, and
+`contour_metrics` contract. Pass `backend="numpy"`, `"metal"`, `"cuda"`, or
+`"hip"` to force a route; `auto` prefers Metal on macOS, HIP on Linux AMD
+hosts, CUDA on other GPU hosts, and otherwise uses NumPy. The CUDA
+implementation has been parity-tested on a Modal NVIDIA L4; the HIP
+implementation targets the local `gfx1151` Strix Halo device and is validated
+by `make hip-test`.
 
 ## GPU suitability survey
 
@@ -310,7 +319,9 @@ The affine contour population is the current evidence-backed GPU path. Its
 large complex64 matrix product and compact reductions amortize transfers. The
 retained Metal benchmark is 4.97x-10.88x faster than two-thread NumPy. A
 warmed best-of-three Modal L4 validation was 25.2x faster on a synthetic
-1,024 x 4,097 shape. Both backends had zero winding disagreements.
+1,024 x 4,097 shape. The local HIP path fuses the same reductions on `gfx1151`;
+its end-to-end receipt is recorded only after the real host benchmark passes.
+All backends must have zero winding disagreements.
 
 The exact sparse-rank, graph64, digest, Dirichlet-inverse, and rigorous Arb
 kernels remain CPU paths. Their finite-field or interval contracts, irregular

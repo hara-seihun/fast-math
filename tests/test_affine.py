@@ -107,7 +107,7 @@ def test_affine_plan_factory_supports_portable_and_auto_backends() -> None:
     automatic = affine_plan(base, basis)
 
     assert isinstance(portable, AffineNumpyPlan)
-    assert automatic.backend in {"numpy", "metal", "cuda"}
+    assert automatic.backend in {"numpy", "metal", "cuda", "hip"}
     np.testing.assert_allclose(
         automatic.evaluate(np.ones((2, 3), dtype=np.float32)),
         np.full((2, 17), 4 + 0j, dtype=np.complex64),

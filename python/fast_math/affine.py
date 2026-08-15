@@ -10,7 +10,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 
-AffineBackend = Literal["auto", "numpy", "metal", "cuda"]
+AffineBackend = Literal["auto", "numpy", "metal", "cuda", "hip"]
 
 
 @dataclass(frozen=True)
@@ -222,7 +222,7 @@ def affine_plan(
     backend: AffineBackend = "auto",
 ):
     """Create the fastest available affine plan for the requested backend."""
-    if backend not in {"auto", "numpy", "metal", "cuda"}:
+    if backend not in {"auto", "numpy", "metal", "cuda", "hip"}:
         raise ValueError(f"unknown affine backend: {backend}")
     if backend == "numpy":
         return AffineNumpyPlan(base, basis)
@@ -234,6 +234,10 @@ def affine_plan(
         from .cuda import AffineCudaPlan
 
         return AffineCudaPlan(base, basis)
+    if backend == "hip":
+        from .hip import AffineHipPlan
+
+        return AffineHipPlan(base, basis)
 
     if platform.system() == "Darwin":
         from .metal import AffineMetalPlan, MetalUnavailable
@@ -243,6 +247,12 @@ def affine_plan(
         except MetalUnavailable:
             pass
     else:
+        from .hip import AffineHipPlan, HipUnavailable
+
+        try:
+            return AffineHipPlan(base, basis)
+        except HipUnavailable:
+            pass
         from .cuda import AffineCudaPlan, CudaUnavailable
 
         try:

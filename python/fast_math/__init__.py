@@ -71,6 +71,10 @@ from .cuda import (
     AffineCudaPlan,
     CudaUnavailable,
 )
+from .hip import (
+    AffineHipPlan,
+    HipUnavailable,
+)
 from .large_graph import (
     CommonNeighborBatch,
     TriangleBatch,
@@ -149,9 +153,11 @@ __all__ = [
     "AffineCudaPlan",
     "AffineMetalPlan",
     "AffineNumpyPlan",
+    "AffineHipPlan",
     "CliqueBatchResult",
     "CommonNeighborBatch",
     "CudaUnavailable",
+    "HipUnavailable",
     "CanonicalDigraphBatch",
     "DecodedGraphBatch",
     "EncodedGraphBatch",
