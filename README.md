@@ -21,8 +21,10 @@ worker pools by default, with a build-time standard-thread fallback.
   double-coset partitions for degrees through 512.
 - `fast_math.ci`: inverse-closed connection-set orbit enumeration, batched
   Cayley graph construction into the existing nauty API, generalized
-  dihedral/Hol(A) helpers, R-0805 derivative-group orbits, and exact
-  coherent-configuration/2-WL refinement with intersection numbers.
+  dihedral/Hol(A) helpers, R-0805 derivative-group orbits, exact
+  coherent-configuration/2-WL refinement with intersection numbers, and
+  bounded-degree `u64_mask_lut`/`compose_u64_mask_luts` microkernels for
+  Python search loops over small packed connection masks.
 - `fast_math.reductions`: deterministic power moments and segmented complex
   sums, L1 masses, and total variations.
 - `fast_math.taylor`: coefficient-stack preparation and Taylor value/log-moment
@@ -157,6 +159,7 @@ make finufft-canopy
 make finufft-prime-shell
 make metal
 make hip-test
+make mask-lut
 make filon
 ```
 
@@ -217,6 +220,7 @@ portable performance promises.
 | Metal affine contour metrics, 4,096 x 13,661 points | 0.0343 s | 10.88x NumPy complex64 | benchmark record |
 | CUDA affine contour metrics, 1,024 x 4,097 synthetic points | 0.00271 s | 25.2x NumPy complex64 | Modal L4 validation |
 | HIP affine contour metrics, 4,096 x 13,661 points on local gfx1151 | 0.0195 s | 28.27x current NumPy affine route; 1.76x raw wall-time advantage over the retained 0.0343 s Metal shape | local `make hip-benchmark` receipt; zero winding disagreements |
+| Small packed-mask permutation, 64 permutations x 2,048 masks at degree 11 | 0.0018 s lookup apply | 49.1x Python bit-walk apply; exact output match | `make mask-lut` receipt |
 
 All three fused runs reproduce the retained acceptance-driving
 `two_level_upper` exactly at binary64 output precision. The original
@@ -331,6 +335,12 @@ The exact sparse-rank, graph64, digest, Dirichlet-inverse, and rigorous Arb
 kernels remain CPU paths. Their finite-field or interval contracts, irregular
 branching, or low arithmetic intensity do not map honestly to the current GPU
 precision and transfer model.
+
+For small CI search programs that repeatedly apply permutations to integer
+connection masks, use `u64_mask_lut` once per permutation and compose lookup
+tables before the candidate loop. This removes repeated Python set-bit walks;
+the table is intentionally bounded at degree 16, while larger actions should
+use the native packed orbit APIs instead.
 
 The compact Chebyshev-Filon contraction is still a plausible GPU target, but
 its accepted contract is complex128. MLX Metal does not execute float64, so a

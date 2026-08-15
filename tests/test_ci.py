@@ -9,6 +9,7 @@ from lambda_fast._native import load_library
 
 from fast_math.ci import (
     atom_subsets_to_element_words,
+    compose_u64_mask_luts,
     canonicalize_cayley_graphs,
     cayley_graphs,
     coherent_configuration,
@@ -24,6 +25,7 @@ from fast_math.ci import (
     induced_atom_generators,
     inverse_closed_atoms,
     pack_subsets,
+    u64_mask_lut,
 )
 
 try:
@@ -33,6 +35,24 @@ try:
     )
 except (OSError, RuntimeError):
     NAUTY_AVAILABLE = False
+
+
+def test_small_mask_luts_compose_exactly() -> None:
+    permutation = np.asarray([2, 0, 3, 1], dtype=np.uint32)
+    inverse = np.asarray([1, 3, 0, 2], dtype=np.uint32)
+    direct = u64_mask_lut(permutation)
+    inverse_lut = u64_mask_lut(inverse)
+    identity = compose_u64_mask_luts(direct, inverse_lut)
+    assert identity == tuple(range(16))
+    assert direct[0b0011] == 0b0101
+    assert direct[0b1100] == 0b1010
+
+
+def test_small_mask_luts_reject_oversized_or_invalid_actions() -> None:
+    with pytest.raises(ValueError, match="between one and 16"):
+        u64_mask_lut(np.arange(17, dtype=np.uint32))
+    with pytest.raises(ValueError, match="each point"):
+        u64_mask_lut(np.asarray([0, 0, 1], dtype=np.uint32))
 
 
 def cyclic_automorphisms(modulus: int) -> np.ndarray:
