@@ -293,7 +293,7 @@ plan = affine_plan(base, basis)  # Metal, CUDA, or portable NumPy
 metrics = plan.contour_metrics(
     candidate_steps,
     edge_slice=slice(edge_begin, edge_end),
-    batch_size=1024,
+    batch_size=None,  # one GPU batch when the retained value buffer fits
 )
 ```
 
