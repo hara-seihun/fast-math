@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from collections import Counter, deque
 from dataclasses import dataclass
-from itertools import product
+from itertools import combinations, product
+from math import comb
 from numbers import Integral
 from time import perf_counter
 from typing import Iterable, Iterator, Literal, Sequence
@@ -15,6 +16,7 @@ from lambda_fast._native import NativeUnavailable
 from ._ci_native import (
     cayley_graphs_native,
     derivative_orbits_native,
+    fixed_weight_subset_orbits_native,
     expand_atom_subsets_native,
     intersection_numbers_native,
     subset_orbits_native,
@@ -124,6 +126,21 @@ class SubsetOrbitPartition:
         if words.shape[1] == 1:
             return words[:, 0]
         return words
+
+
+@dataclass(frozen=True)
+class FixedWeightSubsetOrbits:
+    representative_words: NDArray[np.uint64]
+    orbit_sizes: NDArray[np.uint64]
+    atom_count: int
+    subset_weight: int
+    subset_count: int
+    elapsed_seconds: float
+    backend: str
+
+    @property
+    def representatives(self) -> NDArray[np.uint64]:
+        return self.representative_words[:, 0]
 
 
 @dataclass(frozen=True)
@@ -531,6 +548,166 @@ def enumerate_subset_orbits(
         atom_count=int(atom_count),
         action_is_group=action_is_group,
         backend=backend,
+    )
+
+
+def _fixed_weight_invariant_count(
+    permutation: NDArray[np.uint32],
+    subset_weight: int,
+) -> int:
+    unseen = set(range(len(permutation)))
+    cycle_lengths: list[int] = []
+    while unseen:
+        point = min(unseen)
+        length = 0
+        while point in unseen:
+            unseen.remove(point)
+            point = int(permutation[point])
+            length += 1
+        cycle_lengths.append(length)
+    coefficients = [0] * (subset_weight + 1)
+    coefficients[0] = 1
+    for length in cycle_lengths:
+        for degree in range(subset_weight, length - 1, -1):
+            coefficients[degree] += coefficients[degree - length]
+    return coefficients[subset_weight]
+
+
+def _fixed_weight_orbit_count(
+    complete_action: NDArray[np.uint32],
+    subset_weight: int,
+) -> int:
+    total = sum(
+        _fixed_weight_invariant_count(permutation, subset_weight)
+        for permutation in complete_action
+    )
+    if total % len(complete_action):
+        raise RuntimeError("Burnside fixed-set sum is not divisible by action size")
+    return total // len(complete_action)
+
+
+def _fixed_weight_subset_orbits_reference(
+    complete_action: NDArray[np.uint32],
+    atom_count: int,
+    subset_weight: int,
+) -> tuple[NDArray[np.uint64], NDArray[np.uint64]]:
+    seen: set[int] = set()
+    representatives: list[int] = []
+    sizes: list[int] = []
+    image_bits = tuple(
+        tuple(1 << int(image) for image in permutation)
+        for permutation in complete_action
+    )
+    for subset in combinations(range(atom_count), subset_weight):
+        mask = sum(1 << point for point in subset)
+        if mask in seen:
+            continue
+        images = {
+            sum(bits[point] for point in subset)
+            for bits in image_bits
+        }
+        if images & seen:
+            raise RuntimeError("complete action crossed an earlier orbit")
+        representatives.append(mask)
+        sizes.append(len(images))
+        seen.update(images)
+    if len(seen) != comb(atom_count, subset_weight):
+        raise RuntimeError("fixed-weight orbit enumeration did not cover its domain")
+    return (
+        np.asarray(representatives, dtype=np.uint64),
+        np.asarray(sizes, dtype=np.uint64),
+    )
+
+
+def enumerate_fixed_weight_subset_orbits(
+    complete_action: ArrayLike,
+    subset_weight: int,
+    *,
+    atom_count: int | None = None,
+    max_subsets: int = 1 << 28,
+    backend: CIBackend = "auto",
+) -> FixedWeightSubsetOrbits:
+    """Enumerate one representative per fixed-weight subset orbit.
+
+    ``complete_action`` must contain every distinct element of a finite
+    permutation group.  Unlike ``deduplicate_subset_orbits``, this route does
+    not materialize the complete fixed-weight subset domain.
+    """
+    _validate_backend(backend)
+    action_array = np.asarray(complete_action)
+    if atom_count is None:
+        if action_array.ndim != 2:
+            raise ValueError(
+                "atom_count is required when the action shape is ambiguous"
+            )
+        atom_count = int(action_array.shape[1])
+    if not isinstance(atom_count, Integral) or not 1 <= int(atom_count) <= 64:
+        raise ValueError("fixed-weight atom_count must be between one and 64")
+    atom_count = int(atom_count)
+    if not isinstance(subset_weight, Integral) or not 0 <= int(
+        subset_weight
+    ) <= atom_count:
+        raise ValueError("subset_weight must be between zero and atom_count")
+    subset_weight = int(subset_weight)
+    if not isinstance(max_subsets, Integral) or int(max_subsets) <= 0:
+        raise ValueError("max_subsets must be a positive integer")
+    max_subsets = int(max_subsets)
+    action = _prepare_action(action_array, atom_count)
+    _is_complete_action_reference(action, atom_count, required=True)
+    subset_count = comb(atom_count, subset_weight)
+    if subset_count > max_subsets:
+        raise ValueError(
+            f"fixed-weight domain has {subset_count} subsets, above max_subsets"
+        )
+    expected_orbits = _fixed_weight_orbit_count(action, subset_weight)
+    if backend != "reference":
+        try:
+            representatives, sizes, stats = fixed_weight_subset_orbits_native(
+                action,
+                atom_count,
+                subset_weight,
+                min(max_subsets, np.iinfo(np.uint64).max),
+                expected_orbits,
+            )
+        except (NativeUnavailable, OSError, AttributeError):
+            if backend == "native":
+                raise
+        else:
+            if len(representatives) != expected_orbits:
+                raise RuntimeError(
+                    "native fixed-weight orbit count disagrees with Burnside"
+                )
+            return FixedWeightSubsetOrbits(
+                representative_words=representatives.reshape((-1, 1)),
+                orbit_sizes=sizes,
+                atom_count=atom_count,
+                subset_weight=subset_weight,
+                subset_count=subset_count,
+                elapsed_seconds=float(stats.elapsed_seconds),
+                backend="native",
+            )
+    if backend == "native":
+        raise NativeUnavailable(
+            "fast-math native fixed-weight subset orbit kernel is unavailable"
+        )
+    started = perf_counter()
+    representatives, sizes = _fixed_weight_subset_orbits_reference(
+        action,
+        atom_count,
+        subset_weight,
+    )
+    if len(representatives) != expected_orbits:
+        raise RuntimeError(
+            "reference fixed-weight orbit count disagrees with Burnside"
+        )
+    return FixedWeightSubsetOrbits(
+        representative_words=representatives.reshape((-1, 1)),
+        orbit_sizes=sizes,
+        atom_count=atom_count,
+        subset_weight=subset_weight,
+        subset_count=subset_count,
+        elapsed_seconds=perf_counter() - started,
+        backend="reference",
     )
 
 

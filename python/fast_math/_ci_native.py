@@ -93,6 +93,22 @@ def _library() -> ctypes.CDLL:
                 ctypes.c_size_t,
             ]
             library.fast_math_subset_orbits_v2_u64.restype = ctypes.c_int
+        if hasattr(library, "fast_math_fixed_weight_subset_orbits_u64"):
+            library.fast_math_fixed_weight_subset_orbits_u64.argtypes = [
+                u32,
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_uint64,
+                u64,
+                ctypes.c_uint64,
+                u64,
+                u64,
+                stats,
+                char,
+                ctypes.c_size_t,
+            ]
+            library.fast_math_fixed_weight_subset_orbits_u64.restype = ctypes.c_int
         if hasattr(library, "fast_math_expand_atom_subsets_u64"):
             library.fast_math_expand_atom_subsets_u64.argtypes = [
                 u64,
@@ -271,6 +287,42 @@ def subset_orbits_native(
     _raise(status, error)
     classes = int(class_count.value)
     return class_ids, representatives[:classes], sizes[:classes], stats
+
+
+def fixed_weight_subset_orbits_native(
+    complete_action: NDArray[np.uint32],
+    atom_count: int,
+    subset_weight: int,
+    max_subset_count: int,
+    representative_capacity: int,
+) -> tuple[NDArray[np.uint64], NDArray[np.uint64], NativeCIStats]:
+    representatives = np.empty(representative_capacity, dtype=np.uint64)
+    sizes = np.empty(representative_capacity, dtype=np.uint64)
+    representative_count = ctypes.c_uint64()
+    stats = NativeCIStats()
+    error = ctypes.create_string_buffer(1024)
+    library = _library()
+    if not hasattr(library, "fast_math_fixed_weight_subset_orbits_u64"):
+        raise NativeUnavailable(
+            "native fixed-weight subset orbit enumeration is unavailable"
+        )
+    status = library.fast_math_fixed_weight_subset_orbits_u64(
+        _u32(complete_action),
+        len(complete_action),
+        atom_count,
+        subset_weight,
+        max_subset_count,
+        _u64(representatives),
+        representative_capacity,
+        _u64(sizes),
+        ctypes.byref(representative_count),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _raise(status, error)
+    count = int(representative_count.value)
+    return representatives[:count], sizes[:count], stats
 
 
 def cayley_graphs_native(

@@ -249,6 +249,20 @@ FAST_MATH_API int fast_math_subset_orbits_v2_u64(
     char* error_message,
     std::size_t error_message_size);
 
+FAST_MATH_API int fast_math_fixed_weight_subset_orbits_u64(
+    const std::uint32_t* complete_action,
+    std::size_t action_count,
+    std::uint32_t atom_count,
+    std::uint32_t subset_weight,
+    std::uint64_t max_subset_count,
+    std::uint64_t* representative_masks,
+    std::uint64_t representative_capacity,
+    std::uint64_t* orbit_sizes,
+    std::uint64_t* representative_count,
+    fast_math_ci_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
 FAST_MATH_API int fast_math_expand_atom_subsets_u64(
     const std::uint64_t* subset_words,
     std::size_t subset_count,

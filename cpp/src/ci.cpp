@@ -266,6 +266,41 @@ std::uint64_t permute_mask(
   return result;
 }
 
+using BinomialTable = std::array<std::array<std::uint64_t, 65>, 65>;
+
+BinomialTable binomial_table(std::uint32_t degree) {
+  BinomialTable table{};
+  for (std::uint32_t value = 0; value <= degree; ++value) {
+    table[value][0] = 1;
+    table[value][value] = 1;
+    for (std::uint32_t weight = 1; weight < value; ++weight) {
+      table[value][weight] =
+          table[value - 1][weight - 1] +
+          table[value - 1][weight];
+    }
+  }
+  return table;
+}
+
+std::uint64_t combinadic_rank(
+    std::uint64_t mask,
+    std::uint32_t expected_weight,
+    const BinomialTable& choose) {
+  std::uint64_t rank = 0;
+  std::uint32_t index = 1;
+  while (mask != 0) {
+    const auto point =
+        static_cast<std::uint32_t>(std::countr_zero(mask));
+    rank += choose[point][index];
+    ++index;
+    mask &= mask - 1;
+  }
+  if (index != expected_weight + 1) {
+    throw std::runtime_error("subset image has the wrong weight");
+  }
+  return rank;
+}
+
 void validate_multiplication_table(
     const std::uint32_t* multiplication_table,
     std::uint32_t order) {
@@ -770,6 +805,157 @@ int fast_math_subset_orbits_v2_u64(
     stats->generator_count = generator_count;
     stats->item_count = subset_count;
     stats->class_count = orbits.size();
+    stats->elapsed_seconds =
+        std::chrono::duration<double>(Clock::now() - started).count();
+    return 0;
+  } catch (const std::exception& error) {
+    set_error(error_message, error_message_size, error.what());
+    return 1;
+  } catch (...) {
+    set_error(error_message, error_message_size, "unknown native error");
+    return 2;
+  }
+}
+
+int fast_math_fixed_weight_subset_orbits_u64(
+    const std::uint32_t* complete_action,
+    std::size_t action_count,
+    std::uint32_t atom_count,
+    std::uint32_t subset_weight,
+    std::uint64_t max_subset_count,
+    std::uint64_t* representative_masks,
+    std::uint64_t representative_capacity,
+    std::uint64_t* orbit_sizes,
+    std::uint64_t* representative_count,
+    fast_math_ci_stats* stats,
+    char* error_message,
+    std::size_t error_message_size) {
+  try {
+    if (atom_count == 0 || atom_count > 64) {
+      throw std::invalid_argument(
+          "fixed-weight atom count must be between one and 64");
+    }
+    if (subset_weight > atom_count) {
+      throw std::invalid_argument(
+          "fixed subset weight exceeds the atom count");
+    }
+    if (action_count == 0 || representative_count == nullptr ||
+        stats == nullptr ||
+        (representative_capacity != 0 &&
+         (representative_masks == nullptr || orbit_sizes == nullptr))) {
+      throw std::invalid_argument(
+          "fixed-weight subset orbit pointer is null");
+    }
+    const auto action = read_permutations(
+        complete_action,
+        action_count,
+        atom_count,
+        "fixed-weight action row is not a permutation");
+    is_complete_action(action, atom_count, true);
+    const auto choose = binomial_table(atom_count);
+    const auto subset_count = choose[atom_count][subset_weight];
+    if (subset_count > max_subset_count) {
+      throw std::invalid_argument(
+          "fixed-weight subset domain exceeds max_subset_count");
+    }
+    if (subset_count >
+        static_cast<std::uint64_t>(
+            std::numeric_limits<std::size_t>::max() - 63)) {
+      throw std::invalid_argument(
+          "fixed-weight subset domain is too large for this platform");
+    }
+
+    set_error(error_message, error_message_size, "");
+    *stats = {};
+    const auto started = Clock::now();
+    const auto mask_permutations =
+        build_mask_permutations(action, atom_count);
+    std::vector<std::uint64_t> seen(
+        static_cast<std::size_t>((subset_count + 63) / 64),
+        0);
+    std::vector<std::uint32_t> combination(subset_weight);
+    std::iota(combination.begin(), combination.end(), 0);
+    std::vector<std::uint64_t> image_ranks;
+    image_ranks.reserve(action_count);
+    std::uint64_t output_count = 0;
+    std::uint64_t visited_inputs = 0;
+
+    while (true) {
+      std::uint64_t rank = 0;
+      std::uint64_t mask = 0;
+      for (std::uint32_t index = 0; index < subset_weight; ++index) {
+        rank += choose[combination[index]][index + 1];
+        mask |= std::uint64_t{1} << combination[index];
+      }
+      if (((seen[rank / 64] >> (rank % 64)) & 1U) == 0) {
+        if (output_count >= representative_capacity) {
+          throw std::invalid_argument(
+              "fixed-weight representative capacity is too small");
+        }
+        representative_masks[output_count] = mask;
+        image_ranks.clear();
+        for (const auto& permutation : mask_permutations) {
+          const auto image = permute_mask(mask, permutation);
+          const auto image_rank =
+              combinadic_rank(image, subset_weight, choose);
+          if (image_rank >= subset_count) {
+            throw std::runtime_error(
+                "fixed-weight image rank is out of range");
+          }
+          image_ranks.push_back(image_rank);
+        }
+        std::sort(image_ranks.begin(), image_ranks.end());
+        image_ranks.erase(
+            std::unique(image_ranks.begin(), image_ranks.end()),
+            image_ranks.end());
+        orbit_sizes[output_count] = image_ranks.size();
+        for (const auto image_rank : image_ranks) {
+          if (((seen[image_rank / 64] >> (image_rank % 64)) & 1U) != 0) {
+            throw std::runtime_error(
+                "fixed-weight action crossed an earlier orbit");
+          }
+          seen[image_rank / 64] |=
+              std::uint64_t{1} << (image_rank % 64);
+        }
+        ++output_count;
+      }
+      ++visited_inputs;
+      if (subset_weight == 0) {
+        break;
+      }
+      std::int32_t pivot =
+          static_cast<std::int32_t>(subset_weight) - 1;
+      while (pivot >= 0 &&
+             combination[static_cast<std::size_t>(pivot)] ==
+                 atom_count - subset_weight +
+                     static_cast<std::uint32_t>(pivot)) {
+        --pivot;
+      }
+      if (pivot < 0) {
+        break;
+      }
+      ++combination[static_cast<std::size_t>(pivot)];
+      for (std::uint32_t index =
+               static_cast<std::uint32_t>(pivot) + 1;
+           index < subset_weight;
+           ++index) {
+        combination[index] = combination[index - 1] + 1;
+      }
+    }
+
+    std::uint64_t seen_count = 0;
+    for (const auto word : seen) {
+      seen_count += std::popcount(word);
+    }
+    if (visited_inputs != subset_count || seen_count != subset_count) {
+      throw std::runtime_error(
+          "fixed-weight orbit enumeration did not cover its domain");
+    }
+    *representative_count = output_count;
+    stats->degree = atom_count;
+    stats->generator_count = action_count;
+    stats->item_count = subset_count;
+    stats->class_count = output_count;
     stats->elapsed_seconds =
         std::chrono::duration<double>(Clock::now() - started).count();
     return 0;

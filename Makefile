@@ -4,7 +4,7 @@ export PKG_CONFIG_PATH := $(SYSTEM_PKG_CONFIG_PATH)$(if $(PKG_CONFIG_PATH),:$(PK
 COMPUTE := tools/run-compute.sh
 LIBRARY = $(shell find build -maxdepth 3 -type f \( -name 'libfast_math.dylib' -o -name 'libfast_math.so' -o -name 'fast_math.dll' \) 2>/dev/null | head -1)
 
-.PHONY: configure build hip hip-test hip-benchmark mask-lut test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
+.PHONY: configure build hip hip-test hip-benchmark mask-lut test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci ci-weight-orbits union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
 
 configure:
 	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -58,6 +58,9 @@ graphs: build
 
 groups-ci: build
 	$(COMPUTE) --slots 4 --memory-mb 4096 --timeout-seconds 900 --label fast-math-groups-ci -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_groups_ci.py --repeats 3 --kernel-repeats 5 --native-query-iterations 100 --threads 4 --output benchmarks/results/groups-ci-atlas-2026-07-29.json
+
+ci-weight-orbits: build
+	$(COMPUTE) --slots 1 --memory-mb 1024 --timeout-seconds 900 --label fast-math-ci-weight-orbits -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_ci_weight_orbits.py --repeats 3 --output benchmarks/results/ci-weight-orbits.json
 
 union: build
 	$(COMPUTE) --slots 1 --memory-mb 2048 --timeout-seconds 1800 --label fast-math-union -- env FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) ../problems/union-closed/scratch/minimal-counterexample--fast-math-packed-union-closure-audit/benchmark.py --repeats 11 --output benchmarks/results/union-closure-routes-2026-07-28.json

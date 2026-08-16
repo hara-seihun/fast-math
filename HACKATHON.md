@@ -123,7 +123,9 @@ tools/run-compute.sh --slots 3 --memory-mb 2048 --timeout-seconds 900 \
 - Packed subset bit `i` denotes atom or element `i`, low bit first. Identity
   is never part of a connection set.
 - Complete powerset enumeration is bounded and distinct from quotienting a
-  caller-supplied invariant subset collection.
+  caller-supplied invariant subset collection. Fixed-weight enumeration requires
+  the complete finite action, validates Burnside's orbit count, and keeps the
+  combinatorial domain implicit behind an explicit `max_subsets` bound.
 - Derivative maps are normalized bijections fixing the identity and use the
   exact R-0805 convention documented in `INTERFACE.md`.
 - A 2-WL result is not complete without stable basic relations and verified

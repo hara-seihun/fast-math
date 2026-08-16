@@ -84,6 +84,15 @@ that contract or `False` for an ordinary generator list. One-word masks
 (through 64 atoms) use a byte-lookup bit-permutation kernel; multiword masks
 retain the portable degree-512 route.
 
+`enumerate_fixed_weight_subset_orbits(complete_action, weight)` takes every
+member of a finite permutation group, validates identity, uniqueness, and
+closure, and returns one representative and exact orbit size for each orbit on
+the requested weight slice. It scans the combinatorial domain through a compact
+combinadic bitset rather than materializing all masks. The default
+`max_subsets` bound is explicit; degrees through 64 are supported. Native output
+is checked against the Burnside orbit count, while the executable reference
+backend forms the same complete-action image orbits directly.
+
 The Cayley convention is the arc `(g, s*g)`, so multiplication-table row `s`
 acts on every vertex `g`. The native constructor writes the packed adjacency
 batch consumed directly by `canonicalize_colored_digraphs`; no graph objects

@@ -16,6 +16,7 @@ from fast_math.ci import (
     deduplicate_subset_orbits,
     derivative_orbit_partitions,
     double_cosets,
+    enumerate_fixed_weight_subset_orbits,
     enumerate_subset_orbits,
     expand_atom_masks,
     generalized_dihedral_automorphisms,
@@ -177,6 +178,82 @@ def test_complete_action_subset_orbits_reject_non_group(
             action_is_group=True,
             backend=backend,
         )
+
+
+def test_native_and_reference_fixed_weight_subset_orbits_match_exactly() -> None:
+    action = np.asarray(
+        [
+            [(point + shift) % 8 for point in range(8)]
+            for shift in range(8)
+        ],
+        dtype=np.uint32,
+    )
+    reference = enumerate_fixed_weight_subset_orbits(
+        action,
+        3,
+        backend="reference",
+    )
+    native = enumerate_fixed_weight_subset_orbits(
+        action,
+        3,
+        backend="native",
+    )
+    assert native.subset_count == 56
+    assert int(native.orbit_sizes.sum()) == 56
+    np.testing.assert_array_equal(
+        native.representative_words,
+        reference.representative_words,
+    )
+    np.testing.assert_array_equal(native.orbit_sizes, reference.orbit_sizes)
+    repeated = enumerate_fixed_weight_subset_orbits(
+        action,
+        3,
+        backend="native",
+    )
+    np.testing.assert_array_equal(repeated.representatives, native.representatives)
+    np.testing.assert_array_equal(repeated.orbit_sizes, native.orbit_sizes)
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_fixed_weight_subset_orbits_cover_zero_weight_and_bit_63(
+    backend: str,
+) -> None:
+    identity = np.arange(64, dtype=np.uint32)[np.newaxis, :]
+    empty = enumerate_fixed_weight_subset_orbits(
+        identity,
+        0,
+        max_subsets=1,
+        backend=backend,
+    )
+    assert empty.representatives.tolist() == [0]
+    assert empty.orbit_sizes.tolist() == [1]
+    singletons = enumerate_fixed_weight_subset_orbits(
+        identity,
+        1,
+        max_subsets=64,
+        backend=backend,
+    )
+    assert len(singletons.representatives) == 64
+    assert int(singletons.representatives[-1]) == 1 << 63
+    assert singletons.orbit_sizes.tolist() == [1] * 64
+
+
+def test_fixed_weight_subset_orbits_reject_invalid_domains() -> None:
+    incomplete = np.asarray(
+        [
+            [0, 1, 2],
+            [1, 0, 2],
+            [0, 2, 1],
+        ],
+        dtype=np.uint32,
+    )
+    with pytest.raises(ValueError, match="not closed"):
+        enumerate_fixed_weight_subset_orbits(incomplete, 1)
+    identity = np.arange(10, dtype=np.uint32)[np.newaxis, :]
+    with pytest.raises(ValueError, match="above max_subsets"):
+        enumerate_fixed_weight_subset_orbits(identity, 5, max_subsets=100)
+    with pytest.raises(ValueError, match="between zero and atom_count"):
+        enumerate_fixed_weight_subset_orbits(identity, 11)
 
 
 @pytest.mark.parametrize("backend", ["reference", "native"])
