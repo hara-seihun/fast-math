@@ -223,7 +223,8 @@ portable performance promises.
 | CUDA affine contour metrics, 1,024 x 4,097 synthetic points | 0.00271 s | 25.2x NumPy complex64 | Modal L4 validation |
 | HIP affine contour metrics, 4,096 x 13,661 points on local gfx1151 | 0.0195 s | 28.27x current NumPy affine route; 1.76x raw wall-time advantage over the retained 0.0343 s Metal shape | local `make hip-benchmark` receipt; zero winding disagreements |
 | Small packed-mask permutation, 64 permutations x 2,048 masks at degree 11 | 0.0018 s lookup apply | 49.1x Python bit-walk apply; exact output match | `make mask-lut` receipt |
-| Fixed-weight subset orbits, degree 41 / weight 8 / 95,548,245 subsets | 2.309 s | 2,330,445 exact orbit representatives without domain materialization | `make ci-weight-orbits` receipt |
+| Fixed-weight subset orbits, degree 41 / weight 8 / 95,548,245 subsets | 2.262 s | 2,330,445 exact orbit representatives without domain materialization | `make ci-weight-orbits` receipt |
+| Complete GL(3,3) action validation, 11,232 degree-27 rows | 0.725 s validation benchmark; 4.763 s first route stage vs 319.038 s prior | 67.0x end-to-end route-stage speedup; exact generated-order closure test | `make ci-weight-orbits` receipt |
 
 All three fused runs reproduce the retained acceptance-driving
 `two_level_upper` exactly at binary64 output precision. The original

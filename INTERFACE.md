@@ -78,9 +78,11 @@ batch = canonicalize_cayley_graphs(
 
 `action_is_group=None` auto-detects whether the supplied action rows are the
 complete finite group. A complete action is validated for unique rows,
-identity, and closure, then each subset orbit is generated from one seed
-instead of traversing the action graph. Set `action_is_group=True` to require
-that contract or `False` for an ordinary generator list. One-word masks
+identity, and exact generated-group order, then each subset orbit is generated
+from one seed instead of traversing the action graph. Equality between the
+row count and generated order is equivalent to closure and avoids a quadratic
+all-pairs composition scan. Set `action_is_group=True` to require that contract
+or `False` for an ordinary generator list. One-word masks
 (through 64 atoms) use a byte-lookup bit-permutation kernel; multiword masks
 retain the portable degree-512 route.
 

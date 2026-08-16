@@ -210,16 +210,50 @@ bool is_complete_action(
     }
     return false;
   }
-  for (const auto& left : action) {
-    for (const auto& right : action) {
-      if (!elements.contains(compose(left, right))) {
-        if (required) {
-          throw std::invalid_argument(
-              "complete action is not closed under composition");
+  // Generate the subgroup row by row.  Because every supplied row belongs to
+  // the generated subgroup, the rows are the complete group exactly when the
+  // generated order equals their unique row count.  Stop as soon as the order
+  // exceeds that count.  This replaces the quadratic all-pairs closure scan
+  // by a bounded Schreier-style traversal using only the few rows that enlarge
+  // the generated subgroup.
+  std::unordered_set<Permutation, VectorHash> generated;
+  generated.reserve(action.size() * 2 + 1);
+  generated.insert(identity);
+  std::vector<Permutation> generators;
+  for (const auto& permutation : action) {
+    if (generated.contains(permutation)) {
+      continue;
+    }
+    generators.push_back(permutation);
+    std::deque<Permutation> queue;
+    for (const auto& member : generated) {
+      queue.push_back(member);
+    }
+    while (!queue.empty()) {
+      const auto current = std::move(queue.front());
+      queue.pop_front();
+      for (const auto& generator : generators) {
+        auto product = compose(current, generator);
+        if (!generated.insert(product).second) {
+          continue;
         }
-        return false;
+        if (generated.size() > action.size()) {
+          if (required) {
+            throw std::invalid_argument(
+                "complete action is not closed under composition");
+          }
+          return false;
+        }
+        queue.push_back(std::move(product));
       }
     }
+  }
+  if (generated.size() != action.size()) {
+    if (required) {
+      throw std::invalid_argument(
+          "complete action is not closed under composition");
+    }
+    return false;
   }
   return true;
 }

@@ -23,7 +23,7 @@ from ._ci_native import (
     wl2_refine_native,
 )
 from .canonical import CanonicalDigraphBatch, canonicalize_colored_digraphs
-from .groups import DoubleCosetPartition, permutation_double_cosets
+from .groups import DoubleCosetPartition, group_order, permutation_double_cosets
 
 
 CIBackend = Literal["auto", "native", "reference"]
@@ -423,15 +423,14 @@ def _is_complete_action_reference(
         if required:
             raise ValueError("complete action must contain the identity")
         return False
-    for left in action:
-        for right in action:
-            product_row = tuple(int(left[int(image)]) for image in right)
-            if product_row not in elements:
-                if required:
-                    raise ValueError(
-                        "complete action is not closed under composition"
-                    )
-                return False
+    # The rows generate a permutation group containing every row.  Therefore
+    # they are the complete group exactly when that generated group's order is
+    # the number of unique rows.  Schreier--Sims establishes this without the
+    # quadratic all-pairs closure scan, which dominates large complete actions.
+    if group_order(action, degree=degree, backend="reference") != len(action):
+        if required:
+            raise ValueError("complete action is not closed under composition")
+        return False
     return True
 
 
