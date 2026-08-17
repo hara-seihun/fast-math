@@ -68,6 +68,38 @@ def _library() -> ctypes.CDLL:
                 ctypes.POINTER(ctypes.c_float),
             ]
             library.fast_math_hip_metrics.restype = ctypes.c_int
+            if hasattr(library, "fast_math_hip_square_cover_create"):
+                library.fast_math_hip_square_cover_create.argtypes = [
+                    ctypes.POINTER(ctypes.c_double),
+                    ctypes.c_size_t,
+                    ctypes.POINTER(ctypes.c_void_p),
+                ]
+                library.fast_math_hip_square_cover_create.restype = ctypes.c_int
+                library.fast_math_hip_square_cover_destroy.argtypes = [
+                    ctypes.c_void_p
+                ]
+                library.fast_math_hip_square_cover_destroy.restype = ctypes.c_int
+                library.fast_math_hip_square_cover_evaluate.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.POINTER(ctypes.c_double),
+                    ctypes.c_size_t,
+                    ctypes.c_double,
+                    ctypes.c_double,
+                    ctypes.POINTER(ctypes.c_uint64),
+                    ctypes.POINTER(ctypes.c_uint64),
+                ]
+                library.fast_math_hip_square_cover_evaluate.restype = ctypes.c_int
+                library.fast_math_hip_square_weighted_evaluate.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.POINTER(ctypes.c_double),
+                    ctypes.c_size_t,
+                    ctypes.POINTER(ctypes.c_double),
+                    ctypes.c_double,
+                    ctypes.c_double,
+                    ctypes.POINTER(ctypes.c_double),
+                    ctypes.POINTER(ctypes.c_double),
+                ]
+                library.fast_math_hip_square_weighted_evaluate.restype = ctypes.c_int
             return library
     raise HipUnavailable(
         "HIP support requires build/libfast_math_hip.so; run `make hip`"
@@ -81,6 +113,158 @@ def _pointer(array: NDArray[np.generic], dtype) -> ctypes.Array:
 def _check(code: int, operation: str) -> None:
     if code != 0:
         raise RuntimeError(f"HIP {operation} failed with status {code}")
+
+
+class SquareCoverHipPlan:
+    """Persistent FP64 HIP plan for oriented-square point incidence."""
+
+    backend = "hip"
+
+    def __init__(self, points: ArrayLike) -> None:
+        values = np.asarray(points, dtype=np.float64)
+        if (
+            values.ndim != 2
+            or values.shape[1] != 2
+            or len(values) == 0
+            or not np.all(np.isfinite(values))
+        ):
+            raise ValueError("points must have finite shape (point_count, 2)")
+        values = np.ascontiguousarray(values)
+        library = _library()
+        if not hasattr(library, "fast_math_hip_square_cover_create"):
+            raise HipUnavailable("HIP square-cover support is not built")
+        handle = ctypes.c_void_p()
+        _check(
+            library.fast_math_hip_square_cover_create(
+                _pointer(values.reshape(-1), ctypes.c_double),
+                len(values),
+                ctypes.byref(handle),
+            ),
+            "square-cover plan creation",
+        )
+        self._library = library
+        self._handle = handle
+        self._points = values
+
+    @property
+    def point_count(self) -> int:
+        return len(self._points)
+
+    def evaluate(
+        self,
+        poses: ArrayLike,
+        *,
+        half_extent: float = 0.5,
+        uncertainty: float = 0.0,
+    ) -> tuple[NDArray[np.uint64], NDArray[np.uint64], float]:
+        values = np.asarray(poses, dtype=np.float64)
+        if (
+            values.ndim != 2
+            or values.shape[1] != 4
+            or len(values) == 0
+            or not np.all(np.isfinite(values))
+        ):
+            raise ValueError("poses must have finite shape (pose_count, 4)")
+        if (
+            not np.isfinite(half_extent)
+            or half_extent <= 0
+            or not np.isfinite(uncertainty)
+            or uncertainty < 0
+            or uncertainty >= half_extent
+        ):
+            raise ValueError("invalid half_extent or uncertainty")
+        values = np.ascontiguousarray(values)
+        outputs = np.empty(
+            ((self.point_count + 63) // 64, len(values)), dtype=np.uint64
+        )
+        uncertain = np.empty_like(outputs)
+        started = time.perf_counter()
+        _check(
+            self._library.fast_math_hip_square_cover_evaluate(
+                self._handle,
+                _pointer(values.reshape(-1), ctypes.c_double),
+                len(values),
+                half_extent,
+                uncertainty,
+                _pointer(outputs.reshape(-1), ctypes.c_uint64),
+                _pointer(uncertain.reshape(-1), ctypes.c_uint64),
+            ),
+            "square-cover evaluation",
+        )
+        return outputs, uncertain, time.perf_counter() - started
+
+    def weighted_scores(
+        self,
+        poses: ArrayLike,
+        weights: ArrayLike,
+        *,
+        half_extent: float = 0.5,
+        uncertainty: float = 0.0,
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], float]:
+        values = np.asarray(poses, dtype=np.float64)
+        weight_values = np.asarray(weights, dtype=np.float64)
+        if (
+            values.ndim != 2
+            or values.shape[1] != 4
+            or len(values) == 0
+            or not np.all(np.isfinite(values))
+        ):
+            raise ValueError("poses must have finite shape (pose_count, 4)")
+        if (
+            weight_values.shape != (self.point_count,)
+            or not np.all(np.isfinite(weight_values))
+            or np.any(weight_values < 0)
+        ):
+            raise ValueError("weights must be finite and nonnegative")
+        if (
+            not np.isfinite(half_extent)
+            or half_extent <= 0
+            or not np.isfinite(uncertainty)
+            or uncertainty < 0
+            or uncertainty >= half_extent
+        ):
+            raise ValueError("invalid half_extent or uncertainty")
+        values = np.ascontiguousarray(values)
+        weight_values = np.ascontiguousarray(weight_values)
+        definite = np.empty(len(values), dtype=np.float64)
+        possible = np.empty_like(definite)
+        started = time.perf_counter()
+        _check(
+            self._library.fast_math_hip_square_weighted_evaluate(
+                self._handle,
+                _pointer(values.reshape(-1), ctypes.c_double),
+                len(values),
+                _pointer(weight_values, ctypes.c_double),
+                half_extent,
+                uncertainty,
+                _pointer(definite, ctypes.c_double),
+                _pointer(possible, ctypes.c_double),
+            ),
+            "square weighted evaluation",
+        )
+        return definite, possible, time.perf_counter() - started
+
+    def __enter__(self) -> "SquareCoverHipPlan":
+        if not self._handle.value:
+            raise RuntimeError("square-cover plan is closed")
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
+    def close(self) -> None:
+        handle, self._handle = self._handle, ctypes.c_void_p()
+        if handle and handle.value:
+            _check(
+                self._library.fast_math_hip_square_cover_destroy(handle),
+                "square-cover plan destruction",
+            )
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 class AffineHipPlan:

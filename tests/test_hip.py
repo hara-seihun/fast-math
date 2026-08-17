@@ -5,7 +5,14 @@ import importlib.util
 import numpy as np
 import pytest
 
-from fast_math import AffineHipPlan, HipUnavailable, affine_plan
+from fast_math import (
+    AffineHipPlan,
+    HipUnavailable,
+    SquareCoverHipPlan,
+    affine_plan,
+    oriented_square_cover_words,
+    oriented_square_weighted_scores,
+)
 from fast_math.affine import numpy_contour_metrics
 
 
@@ -71,6 +78,68 @@ def test_hip_batching_preserves_results(hip_plan) -> None:
         batched.edge_floors, full.edge_floors,
         rtol=3e-5, atol=3e-5,
     )
+
+
+def test_hip_square_cover_matches_native() -> None:
+    rng = np.random.default_rng(9014)
+    points = rng.uniform(-2, 2, size=(137, 2))
+    centers = rng.uniform(-1, 1, size=(1003, 2))
+    angles = rng.uniform(-np.pi, np.pi, size=len(centers))
+    directions = np.column_stack((np.cos(angles), np.sin(angles)))
+    poses = np.column_stack((centers, directions))
+    try:
+        plan = SquareCoverHipPlan(points)
+    except (HipUnavailable, OSError, RuntimeError) as error:
+        pytest.skip(str(error))
+    try:
+        inside, uncertain, _ = plan.evaluate(
+            poses, uncertainty=1e-10
+        )
+    finally:
+        plan.close()
+    expected = oriented_square_cover_words(
+        points,
+        centers,
+        directions=directions,
+        uncertainty=1e-10,
+        threads=3,
+        backend="native",
+    )
+    np.testing.assert_array_equal(inside, expected.inside_words)
+    np.testing.assert_array_equal(uncertain, expected.uncertain_words)
+
+    weights = rng.uniform(0, 1, size=len(points))
+    try:
+        plan = SquareCoverHipPlan(points)
+        definite, possible, _ = plan.weighted_scores(
+            poses, weights, uncertainty=1e-10
+        )
+    finally:
+        plan.close()
+    expected_scores = oriented_square_weighted_scores(
+        points,
+        weights,
+        centers,
+        directions=directions,
+        uncertainty=1e-10,
+        threads=3,
+        backend="native",
+    )
+    np.testing.assert_allclose(
+        definite, expected_scores.definite_scores, atol=2e-13
+    )
+    np.testing.assert_allclose(
+        possible, expected_scores.possible_scores, atol=2e-13
+    )
+
+
+def test_hip_square_cover_context_manager() -> None:
+    try:
+        with SquareCoverHipPlan(np.array([[0.0, 0.0]])) as plan:
+            assert plan.point_count == 1
+    except (HipUnavailable, OSError, RuntimeError) as error:
+        pytest.skip(str(error))
+    assert not plan._handle.value
 
 
 def test_auto_prefers_hip_when_available(hip_plan) -> None:

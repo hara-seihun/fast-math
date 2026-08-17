@@ -76,6 +76,7 @@ add_library(fast_math SHARED
   cpp/src/inverse.cpp
   cpp/src/large_graph.cpp
   cpp/src/moments.cpp
+  cpp/src/packing.cpp
   cpp/src/segments.cpp
   cpp/src/sparse_rank.cpp
   cpp/src/sparse_rank_batch.cpp

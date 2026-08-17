@@ -204,8 +204,8 @@ def test_orbits_and_trivial_group(backend: str) -> None:
 
 
 @pytest.mark.parametrize("backend", ["reference", "native"])
-def test_degree_512_cyclic_boundary(backend: str) -> None:
-    degree = 512
+@pytest.mark.parametrize("degree", [512, 4096])
+def test_degree_boundary_cyclic(backend: str, degree: int) -> None:
     cycle = np.roll(np.arange(degree, dtype=np.uint32), -1)
     assert group_order([cycle], backend=backend) == degree
     inverse = invert_permutation(cycle)
@@ -224,6 +224,15 @@ def test_degree_512_cyclic_boundary(backend: str) -> None:
         ),
         [True, True, True],
     )
+    orbits = permutation_orbits([cycle], backend=backend)
+    assert len(orbits) == 1 and orbits[0].size == degree
+
+
+def test_degree_above_boundary_rejected() -> None:
+    degree = 4097
+    cycle = np.roll(np.arange(degree, dtype=np.uint32), -1)
+    with pytest.raises(ValueError):
+        permutation_orbits([cycle])
 
 
 def test_permutation_helpers_use_left_after_right_convention() -> None:
@@ -245,8 +254,8 @@ def test_permutation_helpers_use_left_after_right_convention() -> None:
         ([[0, 0]], None, "not a permutation"),
         ([[0, 2]], None, "out-of-range"),
         ([], None, "degree is required"),
-        (np.empty((0, 0), dtype=np.uint32), 0, "between one and 512"),
-        (np.empty((0, 513), dtype=np.uint32), 513, "between one and 512"),
+        (np.empty((0, 0), dtype=np.uint32), 0, "between one and 4096"),
+        (np.empty((0, 4097), dtype=np.uint32), 4097, "between one and 4096"),
     ],
 )
 def test_group_kernels_reject_invalid_inputs(

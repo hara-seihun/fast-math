@@ -87,8 +87,8 @@ def _prepare_permutations(
     inferred_degree = array.shape[1]
     if degree is None:
         degree = inferred_degree
-    if not isinstance(degree, Integral) or not 1 <= int(degree) <= 512:
-        raise ValueError("degree must be an integer between one and 512")
+    if not isinstance(degree, Integral) or not 1 <= int(degree) <= 4096:
+        raise ValueError("degree must be an integer between one and 4096")
     degree = int(degree)
     if inferred_degree != degree:
         raise ValueError(f"{name} degree does not match degree")

@@ -18,7 +18,7 @@ worker pools by default, with a build-time standard-thread fallback.
   vertex-colored graphs.
 - `fast_math.groups`: permutation point orbits, deterministic Schreier-Sims
   stabilizer chains, exact group order and membership, and explicit finite
-  double-coset partitions for degrees through 512.
+  double-coset partitions for degrees through 4096.
 - `fast_math.ci`: inverse-closed connection-set orbit enumeration, exact
   fixed-weight subset orbits without materializing the full weight slice, batched
   Cayley graph construction into the existing nauty API, generalized
@@ -28,6 +28,9 @@ worker pools by default, with a build-time standard-thread fallback.
   Python search loops over small packed connection masks.
 - `fast_math.reductions`: deterministic power moments and segmented complex
   sums, L1 masses, and total variations.
+- `fast_math.packing`: AVX-512/multicore and persistent-HIP oriented-square
+  incidence and direct weighted-adversary scans. See [`PACKING.md`](PACKING.md)
+  for the numerical contract, API, validation, and measured performance.
 - `fast_math.taylor`: coefficient-stack preparation and Taylor value/log-moment
   evaluation around FINUFFT or another transform backend.
 - `fast_math.filon`: experimental exact-prefix Chebyshev-Filon

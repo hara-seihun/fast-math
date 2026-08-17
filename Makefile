@@ -4,7 +4,7 @@ export PKG_CONFIG_PATH := $(SYSTEM_PKG_CONFIG_PATH)$(if $(PKG_CONFIG_PATH),:$(PK
 COMPUTE := tools/run-compute.sh
 LIBRARY = $(shell find build -maxdepth 3 -type f \( -name 'libfast_math.dylib' -o -name 'libfast_math.so' -o -name 'fast_math.dll' \) 2>/dev/null | head -1)
 
-.PHONY: configure build hip hip-test hip-benchmark mask-lut test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci ci-weight-orbits union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
+.PHONY: configure build hip hip-test hip-benchmark packing mask-lut test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci ci-weight-orbits union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
 
 configure:
 	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -20,6 +20,9 @@ hip-test: hip
 
 hip-benchmark: hip
 	$(COMPUTE) --slots 1 --memory-mb 4096 --timeout-seconds 900 --label fast-math-hip-benchmark -- env PYTHONPATH=python FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) benchmarks/benchmark_hip_affine.py --output benchmarks/results/hip-affine-local.json
+
+packing: build hip
+	$(COMPUTE) --slots 8 --memory-mb 8192 --timeout-seconds 900 --label fast-math-square-packing -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) benchmarks/benchmark_square_packing.py --threads 8 --output benchmarks/results/square-packing-local.json
 
 mask-lut:
 	$(COMPUTE) --slots 1 --memory-mb 512 --timeout-seconds 900 --label fast-math-mask-lut -- env PYTHONPATH=python $(PYTHON) benchmarks/benchmark_u64_mask_lut.py

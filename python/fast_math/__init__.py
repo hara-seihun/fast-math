@@ -74,6 +74,7 @@ from .cuda import (
 from .hip import (
     AffineHipPlan,
     HipUnavailable,
+    SquareCoverHipPlan,
 )
 from .large_graph import (
     CommonNeighborBatch,
@@ -102,6 +103,13 @@ from .sparse import (
     sparse_rank_mod_u32_batch,
 )
 from .union import union_closed_family_masks
+from .packing import (
+    PackingBackend,
+    SquareCoverBatch,
+    SquareScoreBatch,
+    oriented_square_cover_words,
+    oriented_square_weighted_scores,
+)
 from .groups import (
     DoubleCosetPartition,
     GroupBackend,
@@ -174,6 +182,7 @@ __all__ = [
     "FilonInnerProductResult",
     "MetalUnavailable",
     "PairCounts",
+    "PackingBackend",
     "PlanTimings",
     "PowerMoment",
     "PowerMomentResult",
@@ -182,6 +191,9 @@ __all__ = [
     "SparseBlockColoopResult",
     "SparseRankResult",
     "SparseRankBatchResult",
+    "SquareCoverBatch",
+    "SquareCoverHipPlan",
+    "SquareScoreBatch",
     "TaylorCoefficientResult",
     "TaylorEvaluationResult",
     "TriangleBatch",
@@ -213,6 +225,8 @@ __all__ = [
     "filon_chebyshev_inner_product",
     "graph_invariants",
     "native_version",
+    "oriented_square_cover_words",
+    "oriented_square_weighted_scores",
     "pack_digraph_adjacency",
     "power_moments",
     "graph_pair_profiles",

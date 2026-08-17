@@ -8,7 +8,7 @@ function accepts `backend="auto"`, `"native"`, or `"reference"` unless noted.
 ## Permutation groups
 
 Permutations are contiguous integer arrays of shape `(count, degree)` with
-`p[x]` equal to the image of `x`. Degrees 1 through 512 are supported.
+`p[x]` equal to the image of `x`. Degrees 1 through 4096 are supported.
 Composition is `left after right`:
 
 ```python

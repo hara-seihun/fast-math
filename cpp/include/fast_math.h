@@ -164,7 +164,52 @@ struct fast_math_ci_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_square_cover_stats {
+  std::uint64_t point_count;
+  std::uint64_t pose_count;
+  std::uint64_t word_count;
+  std::uint64_t incidence_tests;
+  std::uint32_t thread_count;
+  std::uint32_t simd_lanes;
+  double elapsed_seconds;
+};
+
 FAST_MATH_API const char* fast_math_version();
+
+FAST_MATH_API int fast_math_square_cover_words_f64(
+    const double* points,
+    std::size_t point_count,
+    const double* center_x,
+    const double* center_y,
+    const double* direction_x,
+    const double* direction_y,
+    std::size_t pose_count,
+    double half_extent,
+    double uncertainty,
+    std::uint32_t thread_count,
+    std::uint64_t* inside_words,
+    std::uint64_t* uncertain_words,
+    fast_math_square_cover_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_square_weighted_scores_f64(
+    const double* points,
+    const double* weights,
+    std::size_t point_count,
+    const double* center_x,
+    const double* center_y,
+    const double* direction_x,
+    const double* direction_y,
+    std::size_t pose_count,
+    double half_extent,
+    double uncertainty,
+    std::uint32_t thread_count,
+    double* definite_scores,
+    double* possible_scores,
+    fast_math_square_cover_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
 
 FAST_MATH_API int fast_math_permutation_group_create_u32(
     const std::uint32_t* generators,

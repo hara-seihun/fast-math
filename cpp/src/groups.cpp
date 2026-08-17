@@ -102,9 +102,9 @@ std::vector<Permutation> prepare_permutations(
     std::uint32_t degree,
     bool remove_identity,
     bool deduplicate) {
-  if (degree == 0 || degree > 512) {
+  if (degree == 0 || degree > 4096) {
     throw std::invalid_argument(
-        "permutation degree must be between one and 512");
+        "permutation degree must be between one and 4096");
   }
   if (permutation_count != 0 && values == nullptr) {
     throw std::invalid_argument("permutation pointer is null");
