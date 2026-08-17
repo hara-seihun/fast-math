@@ -14,6 +14,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "python"))
 
 from fast_math import (  # noqa: E402
     decode_graph6,
+    delete_graph_vertices,
     find_cliques,
     graph_invariants,
     graph_pair_profiles,
@@ -187,6 +188,48 @@ def main() -> int:
     np.testing.assert_array_equal(
         invariant_results["native"].triangle_counts,
         invariant_results["reference"].triangle_counts,
+    )
+
+    deletion_sources = np.repeat(
+        np.arange(args.graphs, dtype=np.uint64), args.vertices
+    )
+    deleted_vertices = np.tile(
+        np.arange(args.vertices, dtype=np.uint32), args.graphs
+    )
+    deletion_results = {}
+    for backend in ("reference", "native"):
+        result, wall = timed(
+            lambda backend=backend: delete_graph_vertices(
+                graphs,
+                deletion_sources,
+                deleted_vertices,
+                threads=args.threads,
+                backend=backend,
+            )
+        )
+        deletion_results[backend] = result
+        records.append(
+            {
+                "benchmark": "graph64_vertex_deletion",
+                "backend": backend,
+                "graph_count": args.graphs,
+                "vertex_count": args.vertices,
+                "request_count": len(deletion_sources),
+                "threads": args.threads,
+                "wall_seconds": wall,
+                "kernel_seconds": result.elapsed_seconds,
+                "requests_per_second": len(deletion_sources) / wall,
+                "output_checksum": int(
+                    np.bitwise_xor.reduce(
+                        result.adjacency_masks.reshape(-1),
+                        dtype=np.uint64,
+                    )
+                ),
+            }
+        )
+    np.testing.assert_array_equal(
+        deletion_results["native"].adjacency_masks,
+        deletion_results["reference"].adjacency_masks,
     )
 
     for density, fixture, seed in (

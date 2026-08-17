@@ -783,6 +783,90 @@ int fast_math_graph6_encode_u64(
   }
 }
 
+int fast_math_graph_delete_vertices_u64(
+    const std::uint64_t* adjacency_masks,
+    std::size_t graph_count,
+    std::uint32_t vertex_count,
+    const std::uint64_t* source_graphs,
+    const std::uint32_t* deleted_vertices,
+    std::size_t request_count,
+    std::uint32_t thread_count,
+    std::uint64_t* output_adjacency_masks,
+    fast_math_graph_stats* stats,
+    char* error_message,
+    std::size_t error_message_size) {
+  try {
+    if (source_graphs == nullptr || deleted_vertices == nullptr ||
+        output_adjacency_masks == nullptr || stats == nullptr) {
+      throw std::invalid_argument("vertex-deletion pointer is null");
+    }
+    if (vertex_count < 2 || vertex_count > 64) {
+      throw std::invalid_argument(
+          "vertex deletion requires graphs of order 2-64");
+    }
+    if (request_count == 0) {
+      throw std::invalid_argument(
+          "vertex deletion requires at least one request");
+    }
+    validate_graphs(
+        adjacency_masks, graph_count, vertex_count, thread_count);
+    for (std::size_t request = 0; request < request_count; ++request) {
+      if (source_graphs[request] >= graph_count) {
+        throw std::invalid_argument(
+            "vertex-deletion source index is outside the graph batch");
+      }
+      if (deleted_vertices[request] >= vertex_count) {
+        throw std::invalid_argument(
+            "deleted vertex is outside the graph order");
+      }
+    }
+
+    set_error(error_message, error_message_size, "");
+    *stats = {};
+    const auto started = Clock::now();
+    const auto output_vertex_count = vertex_count - 1;
+    run_graphs(
+        request_count,
+        thread_count,
+        [&](std::size_t request) {
+          const auto* source = adjacency_masks +
+              source_graphs[request] * vertex_count;
+          const auto deleted = deleted_vertices[request];
+          const auto low_mask = deleted == 0
+              ? std::uint64_t{0}
+              : (std::uint64_t{1} << deleted) - 1;
+          auto* output = output_adjacency_masks +
+              request * output_vertex_count;
+          for (std::uint32_t old_vertex = 0;
+               old_vertex < vertex_count;
+               ++old_vertex) {
+            if (old_vertex == deleted) {
+              continue;
+            }
+            const auto new_vertex =
+                old_vertex - static_cast<std::uint32_t>(old_vertex > deleted);
+            const auto row = source[old_vertex];
+            const auto high = deleted == 63
+                ? std::uint64_t{0}
+                : (row >> (deleted + 1)) << deleted;
+            output[new_vertex] = (row & low_mask) | high;
+          }
+        });
+    stats->graph_count = request_count;
+    stats->vertex_count = output_vertex_count;
+    stats->pair_count = pair_count(output_vertex_count);
+    stats->elapsed_seconds =
+        std::chrono::duration<double>(Clock::now() - started).count();
+    return 0;
+  } catch (const std::exception& error) {
+    set_error(error_message, error_message_size, error.what());
+    return 1;
+  } catch (...) {
+    set_error(error_message, error_message_size, "unknown native error");
+    return 2;
+  }
+}
+
 int fast_math_graph_invariants_u64(
     const std::uint64_t* adjacency_masks,
     std::size_t graph_count,

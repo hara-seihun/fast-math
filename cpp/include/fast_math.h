@@ -427,6 +427,19 @@ FAST_MATH_API int fast_math_graph6_encode_u64(
     char* error_message,
     std::size_t error_message_size);
 
+FAST_MATH_API int fast_math_graph_delete_vertices_u64(
+    const std::uint64_t* adjacency_masks,
+    std::size_t graph_count,
+    std::uint32_t vertex_count,
+    const std::uint64_t* source_graphs,
+    const std::uint32_t* deleted_vertices,
+    std::size_t request_count,
+    std::uint32_t thread_count,
+    std::uint64_t* output_adjacency_masks,
+    fast_math_graph_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
 FAST_MATH_API int fast_math_graph_invariants_u64(
     const std::uint64_t* adjacency_masks,
     std::size_t graph_count,

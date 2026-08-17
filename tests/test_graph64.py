@@ -9,6 +9,7 @@ import pytest
 
 from fast_math import (
     decode_graph6,
+    delete_graph_vertices,
     encode_graph6 as encode_graph6_batch,
     find_cliques,
     find_independent_sets,
@@ -523,6 +524,46 @@ def test_graph6_round_trip_matches_reference(vertex_count: int) -> None:
     native = decode_graph6(records, threads=5, backend="native")
     np.testing.assert_array_equal(reference.adjacency_masks, graphs)
     np.testing.assert_array_equal(native.adjacency_masks, graphs)
+
+
+@pytest.mark.skipif(not NATIVE_AVAILABLE, reason="native library is not built")
+@pytest.mark.parametrize("vertex_count", [2, 5, 12, 64])
+def test_vertex_deletion_matches_reference(vertex_count: int) -> None:
+    graphs = random_graphs(7610 + vertex_count, 31, vertex_count)
+    sources = np.repeat(
+        np.arange(len(graphs), dtype=np.uint64), vertex_count
+    )
+    deleted = np.tile(
+        np.arange(vertex_count, dtype=np.uint32), len(graphs)
+    )
+    reference = delete_graph_vertices(
+        graphs,
+        sources,
+        deleted,
+        backend="reference",
+    )
+    serial = delete_graph_vertices(
+        graphs,
+        sources,
+        deleted,
+        threads=1,
+        backend="native",
+    )
+    parallel = delete_graph_vertices(
+        graphs,
+        sources,
+        deleted,
+        threads=5,
+        backend="native",
+    )
+    np.testing.assert_array_equal(
+        serial.adjacency_masks, reference.adjacency_masks
+    )
+    np.testing.assert_array_equal(
+        parallel.adjacency_masks, reference.adjacency_masks
+    )
+    assert serial.graph_count == len(sources)
+    assert serial.vertex_count == vertex_count - 1
 
 
 @pytest.mark.parametrize(
