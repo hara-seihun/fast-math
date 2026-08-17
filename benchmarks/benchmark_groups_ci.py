@@ -17,7 +17,6 @@ from time import perf_counter
 import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RESEARCH_ROOT = PROJECT_ROOT.parent
 sys.path.insert(0, str(PROJECT_ROOT / "python"))
 
 from fast_math.ci import (  # noqa: E402
@@ -29,6 +28,7 @@ from fast_math.ci import (  # noqa: E402
 )
 from fast_math.canonical import canonicalize_colored_digraphs  # noqa: E402
 from fast_math.groups import (  # noqa: E402
+    PermutationGroup,
     group_order,
     permutation_double_cosets,
     permutation_group_contains,
@@ -36,20 +36,14 @@ from fast_math.groups import (  # noqa: E402
 )
 
 
-ATLAS_ROUTE = (
-    RESEARCH_ROOT
-    / "problems"
-    / "cayley-ci"
-    / "scratch"
-    / "atlas--dihedral-generalized-dihedral-first-exact-defect-atlas"
-)
+ATLAS_ROUTE = PROJECT_ROOT / "tests" / "fixtures"
 
 
 def load_atlas_builder():
     name = "_fast_math_benchmark_ci_atlas_builder"
     spec = importlib.util.spec_from_file_location(
         name,
-        ATLAS_ROUTE / "build_atlas.py",
+        ATLAS_ROUTE / "ci_atlas_builder.py",
     )
     if spec is None or spec.loader is None:
         raise RuntimeError("could not load retained atlas builder")
@@ -63,31 +57,29 @@ def serialize_fibers(
     fibers: dict[int | str, list[int]],
     orbit_sizes: dict[int, int],
 ) -> bytes:
-    rows = sorted(
-        (
-            {
-                "ci_multiplicity": len(masks),
-                "orbit_representatives": sorted(map(int, masks)),
-                "raw_connection_sets": sum(
-                    orbit_sizes[int(mask)]
-                    for mask in masks
-                ),
-            }
-            for masks in fibers.values()
-        ),
-        key=lambda row: row["orbit_representatives"],
-    )
-    return b"".join(
-        (
-            json.dumps(
-                row,
-                sort_keys=True,
-                separators=(",", ":"),
+    rows = []
+    for masks in fibers.values():
+        representatives = tuple(sorted(map(int, masks)))
+        rows.append(
+            (
+                representatives,
+                sum(orbit_sizes[mask] for mask in representatives),
             )
-            + "\n"
-        ).encode("ascii")
-        for row in rows
-    )
+        )
+    rows.sort()
+    records = []
+    for representatives, raw_count in rows:
+        encoded_representatives = ",".join(
+            map(str, representatives)
+        )
+        records.append(
+            (
+                f'{{"ci_multiplicity":{len(representatives)},'
+                f'"orbit_representatives":[{encoded_representatives}],'
+                f'"raw_connection_sets":{raw_count}}}\n'
+            ).encode("ascii")
+        )
+    return b"".join(records)
 
 
 def retained_atlas_profile(builder, models) -> tuple[bytes, int, int]:
@@ -142,6 +134,8 @@ def native_atlas_profile(models, threads: int) -> tuple[bytes, int, int]:
                 (len(masks), len(model.elements)),
                 dtype=np.uint32,
             ),
+            threads=threads,
+            collect_automorphism_generators=False,
             backend="native",
         )
         fibers: dict[int, list[int]] = defaultdict(list)
@@ -205,7 +199,7 @@ def gap_group_query(
         ]
     )
     completed = subprocess.run(
-        ["mamba", "run", "-n", ".gap-env", "gap", "-q"],
+        ["gap", "-q"],
         input=script + "\n",
         text=True,
         capture_output=True,
@@ -236,21 +230,12 @@ def native_group_query(
     candidates: np.ndarray,
     threads: int,
 ) -> tuple[int, int, tuple[bool, ...]]:
-    return (
-        group_order(generators, backend="native"),
-        len(permutation_orbits(generators, backend="native")),
-        tuple(
-            map(
-                bool,
-                permutation_group_contains(
-                    generators,
-                    candidates,
-                    threads=threads,
-                    backend="native",
-                ),
-            )
-        ),
-    )
+    with PermutationGroup(generators, backend="native") as group:
+        return (
+            group.order,
+            len(group.orbits),
+            tuple(map(bool, group.contains(candidates, threads=threads))),
+        )
 
 
 def cycle_relations(order: int) -> np.ndarray:
@@ -494,7 +479,7 @@ def main() -> None:
 
     payload = {
         "schema": 1,
-        "date": "2026-07-29",
+        "date": "2026-08-17",
         "repeats": args.repeats,
         "kernel_repeats": args.kernel_repeats,
         "threads": args.threads,
@@ -514,9 +499,9 @@ def main() -> None:
             "generator_count": len(action),
             "membership_query_count": len(candidates),
             "native_iterations_per_repeat": args.native_query_iterations,
-            "gap_mamba_wall_seconds": gap_times,
+            "gap_process_wall_seconds": gap_times,
             "native_wall_seconds": native_query_times,
-            "gap_mamba_wall_median": gap_median,
+            "gap_process_wall_median": gap_median,
             "native_wall_median": native_query_median,
             "wall_speedup": gap_median / native_query_median,
             "group_order": expected_query[0],

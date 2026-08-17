@@ -105,6 +105,7 @@ from .union import union_closed_family_masks
 from .groups import (
     DoubleCosetPartition,
     GroupBackend,
+    PermutationGroup,
     SchreierSimsChain,
     compose_permutations,
     group_order,
@@ -238,6 +239,7 @@ __all__ = [
     "GeneralizedDihedralGroup",
     "GroupBackend",
     "InverseClosedAtoms",
+    "PermutationGroup",
     "SchreierSimsChain",
     "SubsetOrbitPartition",
     "WL2Refinement",

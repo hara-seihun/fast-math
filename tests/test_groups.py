@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from fast_math.groups import (
+    PermutationGroup,
     compose_permutations,
     group_order,
     invert_permutation,
@@ -53,6 +54,64 @@ def test_schreier_sims_symmetric_group(backend: str) -> None:
     assert chain.level_generator_offsets[-1] == len(
         chain.strong_generators
     )
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_reusable_permutation_group(backend: str) -> None:
+    degree = 7
+    cycle = np.roll(np.arange(degree, dtype=np.uint32), -1)
+    transposition = np.arange(degree, dtype=np.uint32)
+    transposition[[0, 1]] = transposition[[1, 0]]
+    candidates = np.stack(
+        [
+            np.arange(degree, dtype=np.uint32),
+            cycle,
+            transposition,
+        ]
+    )
+    with PermutationGroup(
+        np.stack([cycle, transposition]), backend=backend
+    ) as group:
+        assert group.order == factorial(degree)
+        assert len(group.orbits) == 1
+        np.testing.assert_array_equal(
+            group.contains(candidates, threads=3),
+            [True, True, True],
+        )
+        np.testing.assert_array_equal(
+            group.contains(candidates, threads=2),
+            [True, True, True],
+        )
+        assert not group.closed
+    assert group.closed
+    with pytest.raises(RuntimeError, match="closed"):
+        group.contains(candidates)
+
+
+def test_native_and_reference_reusable_groups_match() -> None:
+    generators = np.asarray(
+        [
+            [1, 2, 3, 4, 0, 5],
+            [1, 0, 2, 3, 4, 5],
+            [0, 1, 2, 4, 5, 3],
+        ],
+        dtype=np.uint32,
+    )
+    candidates = np.asarray(list(permutations(range(6))), dtype=np.uint32)
+    with PermutationGroup(generators, backend="reference") as reference:
+        with PermutationGroup(generators, backend="native") as native:
+            assert native.order == reference.order
+            np.testing.assert_array_equal(native.base, reference.base)
+            np.testing.assert_array_equal(
+                native.orbit_sizes, reference.orbit_sizes
+            )
+            assert [orbit.tolist() for orbit in native.orbits] == [
+                orbit.tolist() for orbit in reference.orbits
+            ]
+            np.testing.assert_array_equal(
+                native.contains(candidates, threads=4),
+                reference.contains(candidates),
+            )
 
 
 def test_native_and_reference_chains_match_exactly() -> None:

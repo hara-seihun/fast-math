@@ -14,12 +14,7 @@ from time import perf_counter
 import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RESEARCH_ROOT = PROJECT_ROOT.parent
-ATLAS_ROUTE = (
-    RESEARCH_ROOT
-    / "problems/cayley-ci/scratch/"
-    "atlas--dihedral-generalized-dihedral-first-exact-defect-atlas"
-)
+ATLAS_ROUTE = PROJECT_ROOT / "tests" / "fixtures"
 sys.path.insert(0, str(PROJECT_ROOT / "python"))
 
 from fast_math.canonical import canonicalize_colored_digraphs  # noqa: E402
@@ -34,7 +29,7 @@ def load_atlas_builder():
     name = "_fast_math_ci_stage_atlas_builder"
     spec = importlib.util.spec_from_file_location(
         name,
-        ATLAS_ROUTE / "build_atlas.py",
+        ATLAS_ROUTE / "ci_atlas_builder.py",
     )
     if spec is None or spec.loader is None:
         raise RuntimeError("could not load retained atlas builder")
@@ -206,7 +201,7 @@ def main() -> None:
         baseline_name = str(baseline_path)
     payload = {
         "schema": 1,
-        "date": "2026-07-29",
+        "date": "2026-08-17",
         "threads": args.threads,
         "repeats": args.repeats,
         "collect_automorphism_generators": not args.no_generators,

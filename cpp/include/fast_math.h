@@ -151,6 +151,8 @@ struct fast_math_group_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_permutation_group;
+
 struct fast_math_ci_stats {
   std::uint32_t degree;
   std::uint64_t generator_count;
@@ -163,6 +165,39 @@ struct fast_math_ci_stats {
 };
 
 FAST_MATH_API const char* fast_math_version();
+
+FAST_MATH_API int fast_math_permutation_group_create_u32(
+    const std::uint32_t* generators,
+    std::size_t generator_count,
+    std::uint32_t degree,
+    fast_math_permutation_group** group,
+    fast_math_group_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API void fast_math_permutation_group_destroy(
+    fast_math_permutation_group* group);
+
+FAST_MATH_API int fast_math_permutation_group_summary_u32(
+    const fast_math_permutation_group* group,
+    std::size_t base_capacity,
+    std::uint32_t* base_points,
+    std::uint32_t* orbit_sizes,
+    std::uint32_t* point_orbit_labels,
+    std::uint32_t* point_orbit_count,
+    fast_math_group_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_permutation_group_plan_contains_u32(
+    const fast_math_permutation_group* group,
+    const std::uint32_t* elements,
+    std::size_t element_count,
+    std::uint32_t thread_count,
+    std::uint8_t* contains,
+    fast_math_group_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
 
 FAST_MATH_API int fast_math_permutation_orbits_u32(
     const std::uint32_t* generators,

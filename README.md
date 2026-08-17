@@ -208,6 +208,8 @@ portable performance promises.
 | Packed union closure, singleton-channel retained scout | 0.0402 s CPU vs 0.153 s direct | 3.80x route CPU; identical output | benchmark record |
 | Native packed union closure, 65,535 ground-four families | 0.000968 s vs 0.004867 s NumPy | 5.03x kernel; route wall 1.067x / 1.031x | Modal portable x86_64 record |
 | Nauty colored digraphs, 3,722 order-13 factor graphs | 0.0111 s | 335k graphs/s | benchmark record |
+| Complete 13-group Cayley-CI atlas, 11,664 presentation orbits / 9,606 graph fibers | 0.0960 s vs 5.025 s Python/NetworkX/labelg | 52.33x end-to-end; exact fiber parity | local `make groups-ci` receipt |
+| Degree-18 group order, point orbits, and 17 membership tests | 0.00111 s vs 1.467 s GAP process route | 1,324x; identical output | local `make groups-ci` receipt |
 | Sparse rank, 162,864 x 12,346 with 1,311,046 nonzeros | 1.391 s | 89.8x route baseline | benchmark record |
 | Two-prime sparse rank, same matrix | 1.230 s | 1.74x serial primes | benchmark record |
 | Ordered Arb cache, 1,451,978 values at 256 bits, 3 workers | 0.397 s | 2.58x optimized serial; exact certificate | benchmark record |
@@ -451,16 +453,15 @@ the generators. The exhaustive Python backend is intentionally limited to
 order nine; it is a contract reference, not a production isomorphism engine.
 
 The group and Cayley-CI contracts, array conventions, formulas, and complete
-13-group atlas replay are documented in `INTERFACE.md`. On the retained
-July 29, 2026 optimized benchmark, the native 13-group pipeline takes
-`0.12926016957499087` seconds while reproducing all 11,664
-automorphism-orbit representatives and 9,606 graph fibers exactly. This is
-`18.980477590430294x` faster than the prior native pipeline and
-`40.14429013199191x` faster than the retained Python/NetworkX/`labelg` path.
-A representative order/orbit/membership query remains
-`988.2385755592494x` faster than the mamba/GAP shellout. The exact Q60 shard
-benchmark improves `2.227806721290944x`, and refinement-only 2-WL improves
-the retained 256-graph residual `1.3529226759231057x`.
+13-group atlas replay are documented in `INTERFACE.md`. On the local Ryzen AI
+Max+ 395, the August 17, 2026 native route takes `0.09601842903066427` seconds
+while reproducing all 11,664 automorphism-orbit representatives and 9,606 graph
+fibers exactly. This is `52.333918808805166x` faster end to end than the retained
+Python/NetworkX/`labelg` route. The TLS-enabled nauty build parallelizes exact
+independent canonical searches. A representative degree-18 order, point-orbit,
+and membership route takes `0.0011079729697667062` seconds through a retained
+`PermutationGroup`, `1323.7553063434973x` faster than the equivalent GAP process
+route with identical output.
 
 ## Fixed-width digest contract
 

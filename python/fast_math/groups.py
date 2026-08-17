@@ -13,6 +13,7 @@ from numpy.typing import ArrayLike, NDArray
 from lambda_fast._native import NativeUnavailable
 
 from ._groups_native import (
+    NativePermutationGroupPlan,
     permutation_group_contains_native,
     permutation_orbits_native,
     schreier_sims_native,
@@ -240,6 +241,139 @@ def _reference_chain(
     return levels
 
 
+def _reference_contains_levels(
+    levels: list[_ReferenceLevel],
+    elements: NDArray[np.uint32],
+    degree: int,
+) -> NDArray[np.bool_]:
+    identity = tuple(range(degree))
+    output = np.empty(len(elements), dtype=np.bool_)
+    for index, row in enumerate(elements):
+        residual = tuple(map(int, row))
+        for level in levels:
+            image = residual[level.base]
+            orbit_position = level.orbit_index[image]
+            if orbit_position < 0:
+                output[index] = False
+                break
+            residual = _tuple_compose(
+                level.inverse_transversals[orbit_position],
+                residual,
+            )
+        else:
+            output[index] = residual == identity
+    return output
+
+
+class PermutationGroup:
+    """Reusable exact permutation group with one retained stabilizer chain."""
+
+    def __init__(
+        self,
+        generators: ArrayLike,
+        *,
+        degree: int | None = None,
+        backend: GroupBackend = "auto",
+    ) -> None:
+        _validate_backend(backend)
+        prepared, degree = _prepare_permutations(
+            generators, degree, name="generators"
+        )
+        self.degree = degree
+        self.generators = prepared.copy()
+        self._native: NativePermutationGroupPlan | None = None
+        self._reference_levels: list[_ReferenceLevel] | None = None
+        self._closed = False
+
+        if backend != "reference":
+            try:
+                native = NativePermutationGroupPlan(prepared, degree)
+            except (NativeUnavailable, OSError, AttributeError):
+                if backend == "native":
+                    raise
+            else:
+                self._native = native
+                self.base = native.base.copy()
+                self.orbit_sizes = native.orbit_sizes.copy()
+                self.orbits = tuple(
+                    np.flatnonzero(native.point_orbit_labels == orbit).astype(
+                        np.uint32
+                    )
+                    for orbit in range(native.point_orbit_count)
+                )
+                self.order = reduce(mul, map(int, self.orbit_sizes), 1)
+                self.elapsed_seconds = native.elapsed_seconds
+                self.backend = "native"
+                return
+        if backend == "native":
+            raise NativeUnavailable("fast-math native library is unavailable")
+
+        from time import perf_counter
+
+        started = perf_counter()
+        levels = _reference_chain(prepared, degree)
+        self._reference_levels = levels
+        self.base = np.asarray(
+            [level.base for level in levels], dtype=np.uint32
+        )
+        self.orbit_sizes = np.asarray(
+            [len(level.orbit) for level in levels], dtype=np.uint32
+        )
+        self.orbits = permutation_orbits(
+            prepared, degree=degree, backend="reference"
+        )
+        self.order = reduce(mul, map(int, self.orbit_sizes), 1)
+        self.elapsed_seconds = perf_counter() - started
+        self.backend = "reference"
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    def contains(
+        self,
+        elements: ArrayLike,
+        *,
+        threads: int = 0,
+    ) -> NDArray[np.bool_]:
+        if self._closed:
+            raise RuntimeError("permutation group is closed")
+        if not isinstance(threads, Integral) or int(threads) < 0:
+            raise ValueError("threads must be a nonnegative integer")
+        candidates, _ = _prepare_permutations(
+            elements, self.degree, name="elements"
+        )
+        if self._native is not None:
+            output, _ = self._native.contains(candidates, int(threads))
+            return output
+        if self._reference_levels is None:
+            raise RuntimeError("permutation group has no stabilizer chain")
+        return _reference_contains_levels(
+            self._reference_levels, candidates, self.degree
+        )
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        if self._native is not None:
+            self._native.close()
+            self._native = None
+        self._reference_levels = None
+        self._closed = True
+
+    def __enter__(self) -> PermutationGroup:
+        if self._closed:
+            raise RuntimeError("permutation group is closed")
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        if hasattr(self, "_closed"):
+            self.close()
+
+
 def _chain_result_reference(
     generators: NDArray[np.uint32],
     degree: int,
@@ -371,25 +505,9 @@ def _reference_contains(
     elements: NDArray[np.uint32],
     degree: int,
 ) -> NDArray[np.bool_]:
-    levels = _reference_chain(generators, degree)
-    identity = tuple(range(degree))
-    output = np.empty(len(elements), dtype=np.bool_)
-    for index, row in enumerate(elements):
-        residual = tuple(map(int, row))
-        for level in levels:
-            image = residual[level.base]
-            orbit_position = level.orbit_index[image]
-            if orbit_position < 0:
-                break
-            residual = _tuple_compose(
-                level.inverse_transversals[orbit_position],
-                residual,
-            )
-        else:
-            output[index] = residual == identity
-            continue
-        output[index] = False
-    return output
+    return _reference_contains_levels(
+        _reference_chain(generators, degree), elements, degree
+    )
 
 
 def permutation_group_contains(
@@ -562,6 +680,7 @@ def permutation_double_cosets(
 __all__ = [
     "DoubleCosetPartition",
     "GroupBackend",
+    "PermutationGroup",
     "SchreierSimsChain",
     "compose_permutations",
     "group_order",

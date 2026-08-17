@@ -1,7 +1,7 @@
 # Group and Cayley-CI interfaces
 
 `fast_math.groups` and `fast_math.ci` provide the portable group-theory layer
-used by `problems/cayley-ci`. Python owns validation and executable reference
+used by Projects Research Cayley-CI workloads. Python owns validation and executable reference
 models. C++20 implements the native kernels behind the public C ABI. Every
 function accepts `backend="auto"`, `"native"`, or `"reference"` unless noted.
 
@@ -12,27 +12,21 @@ Permutations are contiguous integer arrays of shape `(count, degree)` with
 Composition is `left after right`:
 
 ```python
-from fast_math.groups import (
-    group_order,
-    permutation_group_contains,
-    permutation_orbits,
-    schreier_sims,
-)
+from fast_math.groups import PermutationGroup, schreier_sims
 
 chain = schreier_sims(generators, backend="native")
-assert chain.order == group_order(generators, backend="native")
-orbits = permutation_orbits(generators, backend="native")
-present = permutation_group_contains(
-    generators,
-    candidates,
-    threads=4,
-    backend="native",
-)
+with PermutationGroup(generators, backend="native") as group:
+    assert group.order == chain.order
+    orbits = group.orbits
+    present = group.contains(candidates, threads=4)
 ```
 
 `SchreierSimsChain` returns the deterministic base, orbit sizes, flattened
 strong generators, and offsets delimiting the generators at each stabilizer
 level. Group order is the exact Python integer product of the orbit sizes.
+`PermutationGroup` retains one immutable native stabilizer chain and point-orbit
+partition across membership batches. It owns its native allocation, supports a
+context manager, and rejects use after `close()`.
 
 `permutation_double_cosets(candidates, left, right)` partitions an explicit
 finite candidate set under left and right generated actions. The candidate set
@@ -169,30 +163,29 @@ graph6 string different from the retained undirected `labelg` convention.
 Atlas parity therefore compares the invariant fiber partition, not spelling
 of the canonical graph6 representative.
 
-Run the retained benchmarks with:
+Run the self-contained retained benchmarks with:
 
 ```sh
-../bin/compute --slots 8 --memory-mb 8192 --timeout-seconds 600 -- \
+make groups-ci
+PYTHONPATH=python FAST_MATH_LIBRARY="$PWD/build/libfast_math.so" \
   python benchmarks/benchmark_ci_pipeline_stages.py \
-    --threads 8 --repeats 7 \
-    --output benchmarks/results/ci-pipeline-atlas-final.json
-../bin/compute --slots 7 --memory-mb 8192 --timeout-seconds 600 -- \
-  python benchmarks/benchmark_ci_q60_shard.py \
-    --threads 7 --repeats 5 \
-    --output benchmarks/results/ci-q60-shard-final.json
-../bin/compute --slots 3 --memory-mb 4096 --timeout-seconds 900 -- \
-  python benchmarks/benchmark_ci_wl2_residual.py \
-    --limit 256 --repeats 3 --threads 3 \
-    --output benchmarks/results/ci-wl2-residual-final.json
+    --threads 8 --repeats 5 \
+    --output benchmarks/results/ci-pipeline-atlas-local.json
 ```
 
-The July 29, 2026 optimized atlas median is `0.12926016957499087` seconds
-with generator materialization retained. This is
-`18.980477590430294x` faster than the pre-optimization native pipeline and
-`40.14429013199191x` faster than the retained
-Python/NetworkX/`labelg` path. The exact Q60 shard improved
-`2.227806721290944x`; refinement-only 2-WL improved the retained 256-graph
-residual `1.3529226759231057x`.
+On the local Ryzen AI Max+ 395, the August 17, 2026 complete 13-group route
+reproduces all 11,664 automorphism-orbit representatives and 9,606 graph fibers
+in `0.09601842903066427` seconds median versus `5.0250206690398045` seconds for
+the retained Python/NetworkX/`labelg` route, a `52.333918808805166x` end-to-end
+speedup. A representative degree-18 GAP process route performing group order,
+point orbits, and 17 membership tests takes `1.4666850980138406` seconds versus
+`0.0011079729697667062` seconds for `PermutationGroup`, a
+`1323.7553063434973x` speedup with identical output.
 
-All native kernels have portable CPU implementations; nauty is optional at
-build time, and tests that require it skip when the symbol is absent.
+The canonical graph batch uses the system's TLS-enabled nauty build, allowing
+independent exact calls to run through the retained worker pool. Permutation
+stabilizer chains and nauty search remain CPU kernels: their branch-heavy exact
+state is a poor GPU fit. Dense affine populations and oriented-square incidence
+already dispatch to the Strix Halo HIP backend, where unified memory and compact
+result transfers are beneficial. All native group kernels remain portable;
+nauty is optional, and tests requiring it skip when unavailable.

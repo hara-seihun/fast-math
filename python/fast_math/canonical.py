@@ -120,14 +120,24 @@ def _class_ids(
     adjacency: NDArray[np.uint64],
     colors: NDArray[np.uint32],
 ) -> NDArray[np.uint32]:
-    classes: dict[bytes, int] = {}
-    result = np.empty(len(adjacency), dtype=np.uint32)
-    for index, (graph, graph_colors) in enumerate(
-        zip(adjacency, colors, strict=True)
-    ):
-        key = graph.tobytes(order="C") + graph_colors.tobytes(order="C")
-        result[index] = classes.setdefault(key, len(classes))
-    return result
+    row_count = len(adjacency)
+    if row_count == 0:
+        return np.empty(0, dtype=np.uint32)
+    adjacency_bytes = adjacency.reshape(row_count, -1).view(np.uint8)
+    color_bytes = colors.reshape(row_count, -1).view(np.uint8)
+    keys = np.concatenate((adjacency_bytes, color_bytes), axis=1)
+    packed = keys.view(np.dtype((np.void, keys.shape[1]))).reshape(-1)
+    _, first_indices, sorted_ids = np.unique(
+        packed,
+        return_index=True,
+        return_inverse=True,
+    )
+    first_occurrence_order = np.argsort(first_indices)
+    stable_ids = np.empty(len(first_occurrence_order), dtype=np.uint32)
+    stable_ids[first_occurrence_order] = np.arange(
+        len(first_occurrence_order), dtype=np.uint32
+    )
+    return stable_ids[sorted_ids]
 
 
 def _reference(

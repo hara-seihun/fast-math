@@ -10,6 +10,7 @@
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <stdexcept>
 #include <string>
@@ -345,7 +346,197 @@ void write_chain(
 
 }  // namespace
 
+struct fast_math_permutation_group {
+  std::uint32_t degree = 0;
+  std::uint64_t generator_count = 0;
+  StabilizerChain chain;
+  std::vector<std::uint32_t> point_orbit_labels;
+  std::uint32_t point_orbit_count = 0;
+};
+
 extern "C" {
+
+int fast_math_permutation_group_create_u32(
+    const std::uint32_t* generators,
+    std::size_t generator_count,
+    std::uint32_t degree,
+    fast_math_permutation_group** group,
+    fast_math_group_stats* stats,
+    char* error_message,
+    std::size_t error_message_size) {
+  try {
+    if (group == nullptr || stats == nullptr) {
+      throw std::invalid_argument(
+          "permutation group output or stats pointer is null");
+    }
+    *group = nullptr;
+    auto prepared = prepare_permutations(
+        generators, generator_count, degree, true, true);
+    set_error(error_message, error_message_size, "");
+    *stats = {};
+    const auto started = Clock::now();
+    auto plan = std::make_unique<fast_math_permutation_group>();
+    plan->degree = degree;
+    plan->generator_count = generator_count;
+    plan->chain = build_chain(prepared, degree);
+    plan->point_orbit_labels.assign(
+        degree, std::numeric_limits<std::uint32_t>::max());
+    const auto symmetric = symmetric_generators(prepared);
+    std::deque<std::uint32_t> queue;
+    for (std::uint32_t seed = 0; seed < degree; ++seed) {
+      if (plan->point_orbit_labels[seed] !=
+          std::numeric_limits<std::uint32_t>::max()) {
+        continue;
+      }
+      plan->point_orbit_labels[seed] = plan->point_orbit_count;
+      queue.push_back(seed);
+      while (!queue.empty()) {
+        const auto point = queue.front();
+        queue.pop_front();
+        for (const auto& generator : symmetric) {
+          const auto image = generator[point];
+          if (plan->point_orbit_labels[image] ==
+              std::numeric_limits<std::uint32_t>::max()) {
+            plan->point_orbit_labels[image] = plan->point_orbit_count;
+            queue.push_back(image);
+          }
+        }
+      }
+      ++plan->point_orbit_count;
+    }
+    stats->degree = degree;
+    stats->generator_count = generator_count;
+    stats->item_count = degree;
+    stats->orbit_count = plan->point_orbit_count;
+    stats->chain_level_count = plan->chain.levels.size();
+    stats->strong_generator_count = strong_generator_count(plan->chain);
+    stats->elapsed_seconds =
+        std::chrono::duration<double>(Clock::now() - started).count();
+    *group = plan.release();
+    return 0;
+  } catch (const std::exception& error) {
+    set_error(error_message, error_message_size, error.what());
+    return 1;
+  } catch (...) {
+    set_error(error_message, error_message_size, "unknown native error");
+    return 2;
+  }
+}
+
+void fast_math_permutation_group_destroy(
+    fast_math_permutation_group* group) {
+  delete group;
+}
+
+int fast_math_permutation_group_summary_u32(
+    const fast_math_permutation_group* group,
+    std::size_t base_capacity,
+    std::uint32_t* base_points,
+    std::uint32_t* orbit_sizes,
+    std::uint32_t* point_orbit_labels,
+    std::uint32_t* point_orbit_count,
+    fast_math_group_stats* stats,
+    char* error_message,
+    std::size_t error_message_size) {
+  try {
+    if (group == nullptr || point_orbit_count == nullptr || stats == nullptr) {
+      throw std::invalid_argument(
+          "permutation group plan or output pointer is null");
+    }
+    if (base_capacity < group->chain.levels.size()) {
+      throw std::invalid_argument(
+          "permutation group base capacity is too small");
+    }
+    if (!group->chain.levels.empty() &&
+        (base_points == nullptr || orbit_sizes == nullptr)) {
+      throw std::invalid_argument(
+          "permutation group chain output pointer is null");
+    }
+    if (point_orbit_labels == nullptr) {
+      throw std::invalid_argument(
+          "permutation group orbit output pointer is null");
+    }
+    set_error(error_message, error_message_size, "");
+    *stats = {};
+    const auto started = Clock::now();
+    for (std::size_t index = 0; index < group->chain.levels.size(); ++index) {
+      base_points[index] = group->chain.levels[index].base;
+      orbit_sizes[index] = static_cast<std::uint32_t>(
+          group->chain.levels[index].orbit.size());
+    }
+    std::copy(
+        group->point_orbit_labels.begin(),
+        group->point_orbit_labels.end(),
+        point_orbit_labels);
+    *point_orbit_count = group->point_orbit_count;
+    stats->degree = group->degree;
+    stats->generator_count = group->generator_count;
+    stats->item_count = group->degree;
+    stats->orbit_count = group->point_orbit_count;
+    stats->chain_level_count = group->chain.levels.size();
+    stats->strong_generator_count = strong_generator_count(group->chain);
+    stats->elapsed_seconds =
+        std::chrono::duration<double>(Clock::now() - started).count();
+    return 0;
+  } catch (const std::exception& error) {
+    set_error(error_message, error_message_size, error.what());
+    return 1;
+  } catch (...) {
+    set_error(error_message, error_message_size, "unknown native error");
+    return 2;
+  }
+}
+
+int fast_math_permutation_group_plan_contains_u32(
+    const fast_math_permutation_group* group,
+    const std::uint32_t* elements,
+    std::size_t element_count,
+    std::uint32_t thread_count,
+    std::uint8_t* contains,
+    fast_math_group_stats* stats,
+    char* error_message,
+    std::size_t error_message_size) {
+  try {
+    if (group == nullptr || stats == nullptr) {
+      throw std::invalid_argument(
+          "permutation group plan or stats pointer is null");
+    }
+    if (element_count != 0 &&
+        (elements == nullptr || contains == nullptr)) {
+      throw std::invalid_argument(
+          "membership input or output pointer is null");
+    }
+    const auto candidates = prepare_permutations(
+        elements, element_count, group->degree, false, false);
+    set_error(error_message, error_message_size, "");
+    *stats = {};
+    const auto started = Clock::now();
+    fast_math_internal::parallel_for_static(
+        element_count,
+        thread_count,
+        [&](std::size_t index) {
+          contains[index] = chain_contains(group->chain, candidates[index]);
+        });
+    stats->degree = group->degree;
+    stats->generator_count = group->generator_count;
+    stats->item_count = element_count;
+    stats->orbit_count = group->point_orbit_count;
+    stats->chain_level_count = group->chain.levels.size();
+    stats->strong_generator_count = strong_generator_count(group->chain);
+    stats->thread_count =
+        fast_math_internal::parallel_worker_count(
+            element_count, thread_count);
+    stats->elapsed_seconds =
+        std::chrono::duration<double>(Clock::now() - started).count();
+    return 0;
+  } catch (const std::exception& error) {
+    set_error(error_message, error_message_size, error.what());
+    return 1;
+  } catch (...) {
+    set_error(error_message, error_message_size, "unknown native error");
+    return 2;
+  }
+}
 
 int fast_math_permutation_orbits_u32(
     const std::uint32_t* generators,

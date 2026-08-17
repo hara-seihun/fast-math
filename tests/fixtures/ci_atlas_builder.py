@@ -210,7 +210,7 @@ def exact_large_automorphism_orders(records: list[str]) -> list[int]:
             ]
         )
     completed = subprocess.run(
-        ["mamba", "run", "-n", ".gap-env", "gap", "-q"],
+        ["gap", "-q"],
         input="\n".join(lines) + "\n",
         text=True,
         capture_output=True,

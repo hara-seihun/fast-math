@@ -57,7 +57,7 @@ graphs: build
 	$(COMPUTE) --slots 7 --memory-mb 2048 --timeout-seconds 1800 --label fast-math-graphs -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_graph64.py --threads 7 --output benchmarks/results/graph64-2026-07-26.json
 
 groups-ci: build
-	$(COMPUTE) --slots 4 --memory-mb 4096 --timeout-seconds 900 --label fast-math-groups-ci -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_groups_ci.py --repeats 3 --kernel-repeats 5 --native-query-iterations 100 --threads 4 --output benchmarks/results/groups-ci-atlas-2026-07-29.json
+	$(COMPUTE) --slots 8 --memory-mb 4096 --timeout-seconds 900 --label fast-math-groups-ci -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_groups_ci.py --repeats 5 --kernel-repeats 3 --native-query-iterations 100 --threads 8 --output benchmarks/results/groups-gap-local.json
 
 ci-weight-orbits: build
 	$(COMPUTE) --slots 1 --memory-mb 1024 --timeout-seconds 900 --label fast-math-ci-weight-orbits -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_ci_weight_orbits.py --repeats 3 --output benchmarks/results/ci-weight-orbits.json
