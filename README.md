@@ -150,6 +150,7 @@ make tune
 make general
 make graphs
 make groups-ci
+make derivative-rank6
 make ci-weight-orbits
 make union
 make union-closure
@@ -213,6 +214,7 @@ portable performance promises.
 | Nauty colored digraphs, 3,722 order-13 factor graphs | 0.0111 s | 335k graphs/s | benchmark record |
 | Complete 13-group Cayley-CI atlas, 11,664 presentation orbits / 9,606 graph fibers | 0.0960 s vs 5.025 s Python/NetworkX/labelg | 52.33x end-to-end; exact fiber parity | local `make groups-ci` receipt |
 | Degree-18 group order, point orbits, and 17 membership tests | 0.00111 s vs 1.467 s GAP process route | 1,324x; identical output | local `make groups-ci` receipt |
+| Derivative orbits on `C_3^6`, order 729 | 0.00855 s vs 0.508 s reference | 59.5x; exact labels and deterministic replay | local `make derivative-rank6` receipt |
 | Sparse rank, 162,864 x 12,346 with 1,311,046 nonzeros | 1.391 s | 89.8x route baseline | benchmark record |
 | Two-prime sparse rank, same matrix | 1.230 s | 1.74x serial primes | benchmark record |
 | Ordered Arb cache, 1,451,978 values at 256 bits, 3 workers | 0.397 s | 2.58x optimized serial; exact certificate | benchmark record |

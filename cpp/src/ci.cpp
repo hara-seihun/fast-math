@@ -71,10 +71,11 @@ std::vector<Permutation> read_permutations(
     const std::uint32_t* values,
     std::size_t count,
     std::uint32_t degree,
-    const char* error) {
-  if (degree == 0 || degree > 512) {
+    const char* error,
+    std::uint32_t maximum_degree = 512) {
+  if (degree == 0 || degree > maximum_degree) {
     throw std::invalid_argument(
-        "permutation degree must be between one and 512");
+        "permutation degree exceeds the operation limit");
   }
   if (count != 0 && values == nullptr) {
     throw std::invalid_argument("permutation pointer is null");
@@ -1242,7 +1243,19 @@ int fast_math_derivative_orbits_u32(
     char* error_message,
     std::size_t error_message_size) {
   try {
-    validate_multiplication_table(multiplication_table, group_order);
+    if (group_order == 0 || group_order > 4096 ||
+        multiplication_table == nullptr) {
+      throw std::invalid_argument(
+          "derivative group order must be between one and 4096");
+    }
+    const auto table_entry_count =
+        static_cast<std::size_t>(group_order) * group_order;
+    for (std::size_t index = 0; index < table_entry_count; ++index) {
+      if (multiplication_table[index] >= group_order) {
+        throw std::invalid_argument(
+            "multiplication table entry is out of range");
+      }
+    }
     if (inverse_indices == nullptr || bijection == nullptr ||
         orbit_labels == nullptr || orbit_count == nullptr ||
         stats == nullptr) {
@@ -1252,7 +1265,8 @@ int fast_math_derivative_orbits_u32(
         bijection,
         1,
         group_order,
-        "bijection is not a permutation")[0];
+        "bijection is not a permutation",
+        4096)[0];
     for (std::uint32_t element = 0;
          element < group_order;
          ++element) {

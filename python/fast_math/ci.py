@@ -916,13 +916,17 @@ def expand_atom_masks(
 
 def _prepare_group_table(
     multiplication_table: ArrayLike,
+    *,
+    maximum_order: int = 512,
 ) -> NDArray[np.uint32]:
     table = np.asarray(multiplication_table)
     if table.ndim != 2 or table.shape[0] != table.shape[1]:
         raise ValueError("multiplication_table must be square")
     order = len(table)
-    if not 1 <= order <= 512:
-        raise ValueError("group order must be between one and 512")
+    if not 1 <= order <= maximum_order:
+        raise ValueError(
+            f"group order must be between one and {maximum_order}"
+        )
     if not np.issubdtype(table.dtype, np.integer):
         raise ValueError("multiplication_table must contain integers")
     if np.any(table < 0) or np.any(table >= order):
@@ -1204,7 +1208,10 @@ def derivative_group_orbits(
 ) -> DerivativeOrbitPartition:
     """Compute the R-0805 relative derivative group and its point orbits."""
     _validate_backend(backend)
-    table = _prepare_group_table(multiplication_table)
+    table = _prepare_group_table(
+        multiplication_table,
+        maximum_order=4096,
+    )
     inverses = _prepare_inverses(inverse_indices, len(table))
     mapping = _prepare_bijection(bijection, len(table))
     if not isinstance(identity, Integral) or not 0 <= int(identity) < len(table):

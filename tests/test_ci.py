@@ -14,6 +14,7 @@ from fast_math.ci import (
     cayley_graphs,
     coherent_configuration,
     deduplicate_subset_orbits,
+    derivative_group_orbits,
     derivative_orbit_partitions,
     double_cosets,
     enumerate_fixed_weight_subset_orbits,
@@ -433,6 +434,29 @@ def test_native_and_reference_derivative_partitions_match() -> None:
     )
     np.testing.assert_array_equal(native.orbit_labels, reference.orbit_labels)
     np.testing.assert_array_equal(native.orbit_counts, reference.orbit_counts)
+
+
+def test_derivative_partitions_support_group_order_above_512() -> None:
+    order = 513
+    elements = np.arange(order, dtype=np.uint32)
+    table = (elements[:, None] + elements[None, :]) % order
+    inverses = (-elements.astype(np.int64) % order).astype(np.uint32)
+    bijection = elements.copy()
+    bijection[1], bijection[2] = bijection[2], bijection[1]
+    reference = derivative_group_orbits(
+        table,
+        inverses,
+        bijection,
+        backend="reference",
+    )
+    native = derivative_group_orbits(
+        table,
+        inverses,
+        bijection,
+        backend="native",
+    )
+    np.testing.assert_array_equal(native.orbit_labels, reference.orbit_labels)
+    assert len(native.orbits) == len(reference.orbits)
 
 
 @pytest.mark.parametrize("backend", ["reference", "native"])

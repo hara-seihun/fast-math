@@ -123,7 +123,9 @@ Delta_f(x)(s) = f^-1(f(s*x) * f(x)^-1)
 
 and returns all `Delta_f(x)` generators plus their point-orbit partition.
 `derivative_orbit_partitions` applies the same exact reference/native contract
-to a batch of bijections.
+to a batch of bijections. Derivative-orbit inputs support group orders through
+4096; this larger bound is specific to the quadratic-storage derivative kernel,
+while packed Cayley-graph construction retains its order-512 bound.
 
 ## Coherent configurations
 
