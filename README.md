@@ -9,6 +9,9 @@ build-time standard-thread fallback.
 `import lambda_fast`, `LAMBDA_FAST_LIBRARY`, `liblambda_fast`, and the
 `lambda_fast_*` C symbols remain supported compatibility interfaces.
 
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the core/domain boundary, retained-plan
+direction, backend contract, and evidence-based GPU priorities.
+
 ## Kernels
 
 - `fast_math.graphs`: graph6 encoding/decoding,

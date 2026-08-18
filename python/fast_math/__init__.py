@@ -155,6 +155,7 @@ from .ci import (
     induced_atom_generators,
     inverse_closed_atoms,
     pack_subsets,
+    u64_mask_lut,
     wl2_refinement,
 )
 

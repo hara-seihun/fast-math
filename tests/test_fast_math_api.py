@@ -3,8 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 
 import fast_math
+import fast_math.graphs as fast_graphs
 import lambda_fast
 from lambda_fast._native import load_library
+
+
+def test_public_exports_are_bound() -> None:
+    for module in (fast_math, fast_graphs):
+        assert len(module.__all__) == len(set(module.__all__))
+        assert not [
+            name for name in module.__all__ if not hasattr(module, name)
+        ]
 
 
 def test_general_api_preserves_lambda_exports() -> None:
