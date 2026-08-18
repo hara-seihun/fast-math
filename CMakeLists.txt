@@ -66,23 +66,36 @@ if(PkgConfig_FOUND)
   endif()
 endif()
 
-add_library(fast_math SHARED
-  cpp/src/accumulate.cpp
-  cpp/src/ci.cpp
+set(FAST_MATH_CORE_SOURCES
   cpp/src/digest.cpp
-  cpp/src/filon.cpp
   cpp/src/graph64.cpp
   cpp/src/groups.cpp
-  cpp/src/inverse.cpp
   cpp/src/large_graph.cpp
-  cpp/src/moments.cpp
-  cpp/src/packing.cpp
   cpp/src/segments.cpp
   cpp/src/sparse_rank.cpp
   cpp/src/sparse_rank_batch.cpp
+  cpp/src/subset_action.cpp
   cpp/src/taylor.cpp
-  cpp/src/two_level.cpp
+)
+
+set(FAST_MATH_DOMAIN_SOURCES
+  cpp/src/ci.cpp
+  cpp/src/filon.cpp
+  cpp/src/packing.cpp
   cpp/src/union.cpp
+)
+
+set(FAST_MATH_LAMBDA_SOURCES
+  cpp/src/accumulate.cpp
+  cpp/src/inverse.cpp
+  cpp/src/moments.cpp
+  cpp/src/two_level.cpp
+)
+
+add_library(fast_math SHARED
+  ${FAST_MATH_CORE_SOURCES}
+  ${FAST_MATH_DOMAIN_SOURCES}
+  ${FAST_MATH_LAMBDA_SOURCES}
 )
 
 target_include_directories(fast_math

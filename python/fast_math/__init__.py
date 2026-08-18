@@ -1,21 +1,15 @@
 """High-throughput native kernels shared across mathematical research."""
 
-from lambda_fast import (
-    AccumulationResult,
-    InverseResult,
-    PairCounts,
-    PowerMoment,
-    PowerMomentResult,
-    TwoLevelRecord,
-    TwoLevelResult,
-    accumulate_coefficients,
-    available_backends,
-    dirichlet_inverse,
-    fused_two_level,
-    native_version,
-    power_moments,
-    truncated_inverse,
+from .runtime import BackendCapability, backend_capabilities
+from .actions import (
+    ActionBackend,
+    CanonicalMaskBatch,
+    MaskOrbitPartition,
+    PermutationActionPlan,
+    compose_u64_mask_luts,
+    u64_mask_lut,
 )
+from .plans import CayleyGraphPlan, FiniteGroupPlan, GraphCanonicalPlan
 from .segments import SegmentedComplexStats, segmented_complex_stats
 from .graph64 import (
     CliqueBatchResult,
@@ -75,6 +69,9 @@ from .hip import (
     AffineHipPlan,
     HipUnavailable,
     SquareCoverHipPlan,
+    SubsetActionHipPlan,
+    hip_available,
+    hip_subset_actions_available,
 )
 from .large_graph import (
     CommonNeighborBatch,
@@ -136,7 +133,6 @@ from .ci import (
     SubsetOrbitPartition,
     WL2Refinement,
     atom_subsets_to_element_words,
-    compose_u64_mask_luts,
     canonicalize_cayley_graphs,
     cayley_graphs,
     coherent_configuration,
@@ -155,18 +151,49 @@ from .ci import (
     induced_atom_generators,
     inverse_closed_atoms,
     pack_subsets,
-    u64_mask_lut,
     wl2_refinement,
 )
 
+_LAMBDA_EXPORTS = {
+    "AccumulationResult",
+    "InverseResult",
+    "PairCounts",
+    "PowerMoment",
+    "PowerMomentResult",
+    "TwoLevelRecord",
+    "TwoLevelResult",
+    "accumulate_coefficients",
+    "available_backends",
+    "dirichlet_inverse",
+    "fused_two_level",
+    "native_version",
+    "power_moments",
+    "truncated_inverse",
+}
+
+
+def __getattr__(name: str):
+    if name not in _LAMBDA_EXPORTS:
+        raise AttributeError(f"module 'fast_math' has no attribute {name!r}")
+    import lambda_fast
+
+    value = getattr(lambda_fast, name)
+    globals()[name] = value
+    return value
+
+
 __all__ = [
     "AccumulationResult",
+    "ActionBackend",
     "AffineBackend",
     "AffineContourMetrics",
     "AffineCudaPlan",
     "AffineMetalPlan",
     "AffineNumpyPlan",
     "AffineHipPlan",
+    "BackendCapability",
+    "CanonicalMaskBatch",
+    "CayleyGraphPlan",
     "CliqueBatchResult",
     "CommonNeighborBatch",
     "CudaUnavailable",
@@ -176,13 +203,17 @@ __all__ = [
     "EncodedGraphBatch",
     "GraphInvariantBatch",
     "GraphPairProfiles",
+    "GraphCanonicalPlan",
+    "FiniteGroupPlan",
     "InducedProfileBatch",
     "InducedProfileStackBatch",
     "InverseResult",
     "FinufftUnavailable",
     "FilonInnerProductResult",
+    "MaskOrbitPartition",
     "MetalUnavailable",
     "PairCounts",
+    "PermutationActionPlan",
     "PackingBackend",
     "PlanTimings",
     "PowerMoment",
@@ -195,6 +226,7 @@ __all__ = [
     "SquareCoverBatch",
     "SquareCoverHipPlan",
     "SquareScoreBatch",
+    "SubsetActionHipPlan",
     "TaylorCoefficientResult",
     "TaylorEvaluationResult",
     "TriangleBatch",
@@ -210,6 +242,7 @@ __all__ = [
     "accumulate_coefficients",
     "affine_plan",
     "available_backends",
+    "backend_capabilities",
     "canonicalize_colored_digraphs",
     "chebyshev_lobatto_endpoint_derivatives",
     "csr_common_neighbors",
@@ -225,6 +258,8 @@ __all__ = [
     "find_independent_sets",
     "filon_chebyshev_inner_product",
     "graph_invariants",
+    "hip_available",
+    "hip_subset_actions_available",
     "native_version",
     "oriented_square_cover_words",
     "oriented_square_weighted_scores",

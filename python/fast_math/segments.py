@@ -7,7 +7,7 @@ from typing import Literal
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from lambda_fast._native import (
+from ._native import (
     NativeUnavailable,
     segmented_complex_stats_native,
 )

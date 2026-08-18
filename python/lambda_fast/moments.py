@@ -8,7 +8,7 @@ from typing import Literal
 import numpy as np
 from numpy.typing import ArrayLike
 
-from ._native import NativeUnavailable, power_moments_native
+from fast_math._native import NativeUnavailable, power_moments_native
 
 
 Backend = Literal["auto", "native", "reference"]

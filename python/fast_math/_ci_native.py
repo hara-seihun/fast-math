@@ -5,7 +5,7 @@ import ctypes
 import numpy as np
 from numpy.typing import NDArray
 
-from lambda_fast._native import NativeUnavailable, load_library
+from ._native import NativeUnavailable, load_library
 
 
 class NativeCIStats(ctypes.Structure):

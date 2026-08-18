@@ -8,7 +8,7 @@ from typing import Literal
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from lambda_fast._native import (
+from ._native import (
     NativeUnavailable,
     graph_common_neighbors_csr_native,
     graph_triangles_csr_native,

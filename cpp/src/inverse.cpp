@@ -1,4 +1,5 @@
 #include "fast_math.h"
+#include "lambda_fast.h"
 
 #include <algorithm>
 #include <chrono>

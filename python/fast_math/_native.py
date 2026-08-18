@@ -5,11 +5,13 @@ from functools import lru_cache
 import os
 from pathlib import Path
 import sys
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ._inputs import PreparedInputs
+if TYPE_CHECKING:
+    from lambda_fast._inputs import PreparedInputs
 
 
 class NativeUnavailable(RuntimeError):

@@ -1,5 +1,36 @@
 # Group and Cayley-CI interfaces
 
+## Retained packed subset actions
+
+`fast_math.actions.PermutationActionPlan` accepts an explicit collection of
+permutations through degree 64 and retains its packed byte-action tables. The
+original mask is an implicit identity image; the mathematical contract minimizes
+it together with every supplied row image. Supply a complete finite group action
+when the result is intended as an orbit representative; a generator list alone
+minimizes only its one-step images.
+
+```python
+from fast_math import PermutationActionPlan
+
+with PermutationActionPlan(complete_action) as action:
+    batch = action.canonicalize(masks, backend="auto", threads=8)
+    flags = action.is_canonical(masks, backend="auto", threads=8)
+    partition = action.partition(invariant_masks, backend="auto", threads=8)
+```
+
+Reference, native CPU, and HIP return identical numeric-minimum masks. The HIP
+canonical predicate exits on the first supplied permutation with a smaller
+image. Automatic image dispatch uses a measured work threshold; predicate-only
+auto calls stay on CPU until a retained HIP plan already exists and the batch is
+large enough to amortize transfers. Explicit backends remain available for
+validation and controlled benchmarks. `partition` groups by the
+canonical images, so its `class_sizes` are orbit sizes exactly when the input
+collection is invariant under a complete supplied action.
+
+`FiniteGroupPlan`, `CayleyGraphPlan`, and `GraphCanonicalPlan` retain validated
+input structures across repeated graph construction and fixed-adjacency color
+batches. They choose no group family, valency, or census range.
+
 `fast_math.groups` and `fast_math.ci` provide the portable group-theory layer
 used by Projects Research Cayley-CI workloads. Python owns validation and executable reference
 models. C++20 implements the native kernels behind the public C ABI. Every

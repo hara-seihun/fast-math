@@ -9,7 +9,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from ._inputs import prepare_inputs
-from ._native import NativeUnavailable, fused_two_level_native
+from fast_math._native import NativeUnavailable, fused_two_level_native
 from .api import PairCounts
 from .reference import accumulate_reference
 

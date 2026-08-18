@@ -136,7 +136,7 @@ def stage_route(source_route: Path, destination: Path) -> None:
         lambda_root / "python/lambda_fast",
     )
     for relative in (
-        "python/lambda_fast/_native.py",
+        "python/fast_math/_native.py",
         "python/lambda_fast/two_level.py",
         "cpp/include/lambda_fast.h",
         "cpp/src/two_level.cpp",

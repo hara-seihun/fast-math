@@ -89,11 +89,11 @@ int status(hipError_t error) {
 }
 
 void free_buffers(HipAffinePlan* plan) {
-  hipFree(plan->steps);
-  hipFree(plan->values);
-  hipFree(plan->windings);
-  hipFree(plan->maximum_phases);
-  hipFree(plan->edge_floors);
+  (void)hipFree(plan->steps);
+  (void)hipFree(plan->values);
+  (void)hipFree(plan->windings);
+  (void)hipFree(plan->maximum_phases);
+  (void)hipFree(plan->edge_floors);
   plan->steps = nullptr;
   plan->values = nullptr;
   plan->windings = nullptr;
@@ -137,8 +137,8 @@ extern "C" int fast_math_hip_create(
       status(hipMalloc(&plan->basis,
                        direction_count * point_count * sizeof(Complex32))) != 0) {
     free_buffers(plan);
-    hipFree(plan->base);
-    hipFree(plan->basis);
+    (void)hipFree(plan->base);
+    (void)hipFree(plan->basis);
     delete plan;
     return -2;
   }
@@ -148,8 +148,8 @@ extern "C" int fast_math_hip_create(
                        direction_count * point_count * sizeof(Complex32),
                        hipMemcpyHostToDevice)) != 0) {
     free_buffers(plan);
-    hipFree(plan->base);
-    hipFree(plan->basis);
+    (void)hipFree(plan->base);
+    (void)hipFree(plan->basis);
     delete plan;
     return -3;
   }

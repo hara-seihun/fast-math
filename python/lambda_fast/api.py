@@ -7,7 +7,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from ._inputs import prepare_inputs
-from ._native import (
+from fast_math._native import (
     NativeUnavailable,
     accumulate_native,
     native_available,

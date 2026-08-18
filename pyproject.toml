@@ -36,6 +36,7 @@ cuda = [
 dev = [
   "networkx>=3.5",
   "pytest>=8.0",
+  "pytest-xdist>=3.8",
 ]
 
 [tool.hatch.build.targets.wheel]

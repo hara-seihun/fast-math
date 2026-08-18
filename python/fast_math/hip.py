@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+from functools import lru_cache
 import os
 from pathlib import Path
 import time
@@ -21,6 +22,7 @@ class HipUnavailable(RuntimeError):
     """Raised when the optional ROCm/HIP backend is unavailable."""
 
 
+@lru_cache(maxsize=1)
 def _library() -> ctypes.CDLL:
     candidates = []
     configured = os.environ.get("FAST_MATH_HIP_LIBRARY")
@@ -100,10 +102,52 @@ def _library() -> ctypes.CDLL:
                     ctypes.POINTER(ctypes.c_double),
                 ]
                 library.fast_math_hip_square_weighted_evaluate.restype = ctypes.c_int
+            if hasattr(library, "fast_math_hip_subset_action_create"):
+                library.fast_math_hip_subset_action_create.argtypes = [
+                    ctypes.POINTER(ctypes.c_uint32),
+                    ctypes.c_size_t,
+                    ctypes.c_uint32,
+                    ctypes.POINTER(ctypes.c_void_p),
+                ]
+                library.fast_math_hip_subset_action_create.restype = ctypes.c_int
+                library.fast_math_hip_subset_action_destroy.argtypes = [
+                    ctypes.c_void_p
+                ]
+                library.fast_math_hip_subset_action_destroy.restype = ctypes.c_int
+                library.fast_math_hip_subset_action_canonicalize.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.POINTER(ctypes.c_uint64),
+                    ctypes.c_size_t,
+                    ctypes.POINTER(ctypes.c_uint64),
+                    ctypes.POINTER(ctypes.c_uint8),
+                ]
+                library.fast_math_hip_subset_action_canonicalize.restype = ctypes.c_int
+                library.fast_math_hip_subset_action_is_canonical.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.POINTER(ctypes.c_uint64),
+                    ctypes.c_size_t,
+                    ctypes.POINTER(ctypes.c_uint8),
+                ]
+                library.fast_math_hip_subset_action_is_canonical.restype = ctypes.c_int
             return library
     raise HipUnavailable(
         "HIP support requires build/libfast_math_hip.so; run `make hip`"
     )
+
+
+def hip_available() -> bool:
+    try:
+        _library()
+    except HipUnavailable:
+        return False
+    return True
+
+
+def hip_subset_actions_available() -> bool:
+    try:
+        return hasattr(_library(), "fast_math_hip_subset_action_create")
+    except HipUnavailable:
+        return False
 
 
 def _pointer(array: NDArray[np.generic], dtype) -> ctypes.Array:
@@ -113,6 +157,130 @@ def _pointer(array: NDArray[np.generic], dtype) -> ctypes.Array:
 def _check(code: int, operation: str) -> None:
     if code != 0:
         raise RuntimeError(f"HIP {operation} failed with status {code}")
+
+
+def _subset_permutations(values: ArrayLike) -> NDArray[np.uint32]:
+    raw = np.asarray(values)
+    if raw.ndim != 2 or raw.shape[0] == 0 or not 1 <= raw.shape[1] <= 64:
+        raise ValueError("permutations must have shape (count, degree), degree 1..64")
+    if not np.issubdtype(raw.dtype, np.integer):
+        raise TypeError("permutations must contain integers")
+    if np.any(raw < 0) or np.any(raw >= raw.shape[1]):
+        raise ValueError("permutation image is out of range")
+    result = np.array(raw, dtype=np.uint32, order="C", copy=True)
+    if np.any(np.sort(result, axis=1) != np.arange(result.shape[1])):
+        raise ValueError("every action row must be a permutation")
+    result.flags.writeable = False
+    return result
+
+
+def _subset_masks(values: ArrayLike, degree: int) -> NDArray[np.uint64]:
+    raw = np.asarray(values)
+    if raw.ndim != 1:
+        raise ValueError("masks must be one-dimensional")
+    if not np.issubdtype(raw.dtype, np.integer):
+        raise TypeError("masks must contain integers")
+    if np.issubdtype(raw.dtype, np.signedinteger) and np.any(raw < 0):
+        raise ValueError("masks must be nonnegative")
+    result = np.ascontiguousarray(raw, dtype=np.uint64)
+    if degree < 64 and np.any(result >> np.uint64(degree)):
+        raise ValueError("mask contains an out-of-range bit")
+    return result
+
+
+class SubsetActionHipPlan:
+    """Persistent exact HIP plan for packed subset images."""
+
+    backend = "hip"
+
+    def __init__(self, permutations: ArrayLike) -> None:
+        values = _subset_permutations(permutations)
+        library = _library()
+        if not hasattr(library, "fast_math_hip_subset_action_create"):
+            raise HipUnavailable("HIP packed subset actions are not built")
+        handle = ctypes.c_void_p()
+        _check(
+            library.fast_math_hip_subset_action_create(
+                _pointer(values.reshape(-1), ctypes.c_uint32),
+                len(values),
+                values.shape[1],
+                ctypes.byref(handle),
+            ),
+            "subset action plan creation",
+        )
+        if not handle.value:
+            raise RuntimeError("HIP subset action returned a null handle")
+        self._library = library
+        self._handle = handle
+        self._permutations = values
+
+    @property
+    def degree(self) -> int:
+        return self._permutations.shape[1]
+
+    def canonicalize(
+        self,
+        masks: ArrayLike,
+    ) -> tuple[NDArray[np.uint64], NDArray[np.bool_], float]:
+        if not self._handle.value:
+            raise RuntimeError("HIP subset action plan is closed")
+        values = _subset_masks(masks, self.degree)
+        canonical = np.empty(len(values), dtype=np.uint64)
+        flags = np.empty(len(values), dtype=np.uint8)
+        started = time.perf_counter()
+        _check(
+            self._library.fast_math_hip_subset_action_canonicalize(
+                self._handle,
+                _pointer(values, ctypes.c_uint64),
+                len(values),
+                _pointer(canonical, ctypes.c_uint64),
+                _pointer(flags, ctypes.c_uint8),
+            ),
+            "subset action canonicalization",
+        )
+        return canonical, flags.view(np.bool_), time.perf_counter() - started
+
+    def is_canonical(
+        self,
+        masks: ArrayLike,
+    ) -> tuple[NDArray[np.bool_], float]:
+        if not self._handle.value:
+            raise RuntimeError("HIP subset action plan is closed")
+        values = _subset_masks(masks, self.degree)
+        flags = np.empty(len(values), dtype=np.uint8)
+        started = time.perf_counter()
+        _check(
+            self._library.fast_math_hip_subset_action_is_canonical(
+                self._handle,
+                _pointer(values, ctypes.c_uint64),
+                len(values),
+                _pointer(flags, ctypes.c_uint8),
+            ),
+            "subset action canonical test",
+        )
+        return flags.view(np.bool_), time.perf_counter() - started
+
+    def close(self) -> None:
+        handle, self._handle = self._handle, ctypes.c_void_p()
+        if handle.value:
+            _check(
+                self._library.fast_math_hip_subset_action_destroy(handle),
+                "subset action plan destruction",
+            )
+
+    def __enter__(self) -> "SubsetActionHipPlan":
+        if not self._handle.value:
+            raise RuntimeError("HIP subset action plan is closed")
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 class SquareCoverHipPlan:

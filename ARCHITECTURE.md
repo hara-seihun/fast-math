@@ -33,17 +33,18 @@ fixtures for generic contracts.
 
 The package boundary is less mature than the kernels:
 
-1. The root package eagerly re-exports more than one hundred names from core
-   primitives and domain modules.
-2. General modules load the native library through `lambda_fast._native`, so a
-   domain extension currently owns the common native bridge.
-3. Every CPU kernel is linked into one shared object, while HIP is built by a
-   separate host-oriented script and exposed through a separate Python module.
-4. Repeated callers retain permutation groups and transform plans, but subset
-   actions, finite-group tables, Cayley construction, and graph batches do not
-   yet share a common retained-plan model.
-5. General primitives and specialized fused operations are presented at the
-   same level. Examples of the latter are Lambda two-level replay, oriented
+1. The root package still eagerly exposes more than one hundred names from core
+   primitives and domain modules; only the Lambda compatibility exports are lazy.
+2. The common native bridge is owned by `fast_math._native`; Lambda imports it
+   as a domain consumer and can still be imported independently.
+3. CPU sources are explicitly grouped into core, domain, and Lambda components
+   while retaining one ordinary shared-library installation. HIP remains a
+   separate optional build because NixOS supplies a split ROCm toolchain.
+4. Packed subset actions, finite-group tables, Cayley construction, and fixed
+   graph canonicalization now have retained plans alongside permutation-group
+   and transform plans.
+5. General primitives and specialized fused operations remain installable
+   together. Examples of the latter are Lambda two-level replay, oriented
    square coverage, Chebyshev-Filon contraction, rooted-leaf attachment
    features, and contour-specific affine reductions.
 
@@ -129,7 +130,7 @@ higher-precision validation.
 
 | Primitive | Suitability | Reason |
 | --- | --- | --- |
-| Packed subset permutation, canonical-minimum tests, fixed-weight scans | High | Large independent integer batches, byte lookup/permutation, compact outputs, and many CI consumers |
+| Packed subset permutation and canonical-minimum tests | Shipped on CPU and HIP | Retained exact byte-lookup plans, compact outputs, deterministic parity, and many CI consumers |
 | Batched relation histograms and selected WL refinement stages | Promising | Dense repeated exact counts; requires deterministic color compaction and a real route benchmark |
 | Batched graph invariants and dense incidence predicates | Promising at large batch sizes | Regular work and compact reductions; CPU remains preferable for small batches |
 | Cayley adjacency construction | Conditional | Simple exact parallel work, but useful only when the next stage can consume device-resident adjacency |
@@ -139,26 +140,31 @@ higher-precision validation.
 | Deterministic sparse modular elimination | Poor in its current form | Data-dependent pivot chains and exact witness ordering |
 | Arb interval computation | Poor | Arbitrary precision and strict ordered certificate semantics |
 
-The first general GPU experiment should therefore be a retained packed-subset
-action plan, not a GPU implementation of one census. Acceptance requires CPU
-reference parity, deterministic representative and orbit semantics, bounded
-memory, and end-to-end wins on at least two real consumer shapes.
+The first general GPU implementation is therefore a retained packed-subset
+action plan, not a GPU implementation of one census. `PermutationActionPlan`
+shares reference, native CPU, and HIP semantics; the native and HIP plans retain
+byte-permutation tables and workspaces, return deterministic canonical masks,
+and provide an early-exit canonical-minimum predicate. The benchmark covers a
+cyclic degree-41 action and a 504-permutation degree-39 product action with exact
+full-batch parity.
 
-## Refactor sequence
+## Completed refactor and next work
 
-1. Move native discovery and generic C structures into a Fast Math-owned runtime
-   module; make domain packages depend on it.
-2. Split the build into core and explicit domain components while preserving one
-   ordinary installation and test command.
-3. Introduce retained action, finite-group, Cayley, and canonical-graph plans;
-   implement existing functions as one-shot uses of those plans.
-4. Add a backend capability registry shared by NumPy, CPU, Metal, CUDA, and HIP.
-5. Implement and benchmark the packed-subset GPU plan, including device-resident
-   chunking and compact representative output.
-6. Promote another GPU primitive only after a complete consumer route shows a
-   material wall-time or scope gain.
+Completed:
 
-This sequence improves the library boundary before increasing the number of
-kernels. It also lets CPU and GPU implementations share validation, types,
-reference semantics, and tests instead of becoming parallel domain-specific
-code paths.
+1. native discovery and generic C structures moved into the Fast Math runtime;
+2. CPU sources grouped into core, mathematical-domain, and Lambda components;
+3. retained action, finite-group, Cayley, and fixed-graph plans introduced;
+4. backend capability reporting added across reference, native, Metal, CUDA,
+   and HIP;
+5. exact native and HIP packed-subset action kernels shipped with deterministic
+   parity tests and representative benchmarks;
+6. HIP architecture selection changed from a host constant to runtime hardware
+   discovery at build time.
+
+Next work should implement existing one-shot finite-group and graph functions in
+terms of the retained plans where profiling shows repeated validation or
+allocation, then promote another GPU primitive only after a complete consumer
+route shows a material wall-time or scope gain. This keeps CPU and GPU
+implementations behind shared validation, types, reference semantics, and tests
+instead of creating parallel domain-specific code paths.

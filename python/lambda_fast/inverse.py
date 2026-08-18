@@ -6,7 +6,7 @@ from typing import Literal
 
 import numpy as np
 
-from ._native import NativeUnavailable, dirichlet_inverse_native
+from fast_math._native import NativeUnavailable, dirichlet_inverse_native
 
 
 Backend = Literal["auto", "native", "reference"]

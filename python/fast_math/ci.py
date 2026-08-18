@@ -11,7 +11,7 @@ from typing import Iterable, Iterator, Literal, Sequence
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from lambda_fast._native import NativeUnavailable
+from ._native import NativeUnavailable
 
 from ._ci_native import (
     cayley_graphs_native,
@@ -22,68 +22,13 @@ from ._ci_native import (
     subset_orbits_native,
     wl2_refine_native,
 )
+from .actions import U64MaskLUT, compose_u64_mask_luts, u64_mask_lut
 from .canonical import CanonicalDigraphBatch, canonicalize_colored_digraphs
 from .groups import DoubleCosetPartition, group_order, permutation_double_cosets
 
 
 CIBackend = Literal["auto", "native", "reference"]
 PermutationDoubleCosetPartition = DoubleCosetPartition
-U64MaskLUT = tuple[int, ...]
-
-
-def u64_mask_lut(
-    permutation: ArrayLike,
-    *,
-    degree: int | None = None,
-) -> U64MaskLUT:
-    """Precompute an exact lookup table for a small packed-mask action.
-
-    The table maps bit ``i`` to bit ``permutation[i]``.  It is deliberately
-    bounded at degree 16: the resulting table is a hot-loop microkernel for
-    small finite-group searches, not a general replacement for the packed
-    native orbit kernels.  Applying a tuple lookup is substantially cheaper
-    than rebuilding a Python integer mask one set bit at a time.
-    """
-    array = np.asarray(permutation)
-    if array.ndim != 1 or not np.issubdtype(array.dtype, np.integer):
-        raise ValueError("permutation must be a one-dimensional integer array")
-    if degree is None:
-        degree = int(array.size)
-    if not isinstance(degree, Integral) or not 0 < int(degree) <= 16:
-        raise ValueError("degree must be an integer between one and 16")
-    degree = int(degree)
-    if array.size != degree:
-        raise ValueError("permutation length must equal degree")
-    prepared = np.ascontiguousarray(array, dtype=np.int64)
-    if np.any(prepared < 0) or np.any(prepared >= degree):
-        raise ValueError("permutation values are outside the degree")
-    if not np.array_equal(np.sort(prepared), np.arange(degree)):
-        raise ValueError("permutation must contain each point exactly once")
-    image_bits = tuple(1 << int(image) for image in prepared)
-    lookup = [0] * (1 << degree)
-    for mask in range(1, len(lookup)):
-        least = mask & -mask
-        lookup[mask] = lookup[mask ^ least] | image_bits[least.bit_length() - 1]
-    return tuple(lookup)
-
-
-def compose_u64_mask_luts(
-    first: U64MaskLUT,
-    second: U64MaskLUT,
-) -> U64MaskLUT:
-    """Compose two packed-mask lookup tables as ``first(second(mask))``."""
-    if len(first) == 0 or len(first) != len(second):
-        raise ValueError("mask lookup tables must have the same nonzero size")
-    limit = len(first)
-    if limit & (limit - 1):
-        raise ValueError("mask lookup table size must be a power of two")
-    if any(
-        value < 0 or value >= limit
-        for table in (first, second)
-        for value in table
-    ):
-        raise ValueError("mask lookup table contains an out-of-range value")
-    return tuple(first[second[mask]] for mask in range(limit))
 
 
 @dataclass(frozen=True)

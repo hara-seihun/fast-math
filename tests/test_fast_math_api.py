@@ -1,19 +1,37 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+import sys
 
 import fast_math
+import fast_math.actions as fast_actions
 import fast_math.graphs as fast_graphs
+import fast_math.plans as fast_plans
+import fast_math.runtime as fast_runtime
 import lambda_fast
-from lambda_fast._native import load_library
+from fast_math._native import load_library
 
 
 def test_public_exports_are_bound() -> None:
-    for module in (fast_math, fast_graphs):
+    for module in (
+        fast_math,
+        fast_actions,
+        fast_graphs,
+        fast_plans,
+        fast_runtime,
+    ):
         assert len(module.__all__) == len(set(module.__all__))
         assert not [
             name for name in module.__all__ if not hasattr(module, name)
         ]
+
+
+def test_lambda_package_can_load_before_fast_math() -> None:
+    subprocess.run(
+        [sys.executable, "-c", "import lambda_fast; import fast_math"],
+        check=True,
+    )
 
 
 def test_general_api_preserves_lambda_exports() -> None:
@@ -41,6 +59,9 @@ def test_old_and_new_native_abi_symbols_are_available() -> None:
         "fast_math_sparse_rank_mod_u32_batch",
         "fast_math_sparse_block_coloops_mod_u32",
         "fast_math_filon_chebyshev_inner_product_f64",
+        "fast_math_subset_action_create_u32",
+        "fast_math_subset_action_canonicalize_u64",
+        "fast_math_subset_action_destroy",
     ):
         assert getattr(library, symbol) is not None
 

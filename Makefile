@@ -4,7 +4,7 @@ export PKG_CONFIG_PATH := $(SYSTEM_PKG_CONFIG_PATH)$(if $(PKG_CONFIG_PATH),:$(PK
 COMPUTE := tools/run-compute.sh
 LIBRARY = $(shell find build -maxdepth 3 -type f \( -name 'libfast_math.dylib' -o -name 'libfast_math.so' -o -name 'fast_math.dll' \) 2>/dev/null | head -1)
 
-.PHONY: configure build hip hip-test hip-benchmark packing mask-lut test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci derivative-rank6 ci-weight-orbits union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
+.PHONY: configure build hip hip-test hip-benchmark packing mask-lut subset-actions test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci derivative-rank6 ci-weight-orbits union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
 
 configure:
 	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -27,13 +27,16 @@ packing: build hip
 mask-lut:
 	$(COMPUTE) --slots 1 --memory-mb 512 --timeout-seconds 900 --label fast-math-mask-lut -- env PYTHONPATH=python $(PYTHON) benchmarks/benchmark_u64_mask_lut.py
 
+subset-actions: build hip
+	$(COMPUTE) --slots 8 --memory-mb 4096 --timeout-seconds 900 --label fast-math-subset-actions -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) benchmarks/benchmark_subset_actions.py --threads 8 --output benchmarks/results/subset-actions-local.json
+
 test: build
-	$(COMPUTE) --slots 5 --memory-mb 4096 --timeout-seconds 1800 --label fast-math-tests -- sh -c 'ctest --test-dir build --output-on-failure && env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) -m pytest -q'
+	$(COMPUTE) --slots 10 --memory-mb 6144 --timeout-seconds 1800 --label fast-math-tests -- sh -c 'ctest --test-dir build --output-on-failure && env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) -m pytest -q -n 10'
 
 portable-test:
 	cmake -S . -B build-portable -DCMAKE_BUILD_TYPE=Release -DFAST_MATH_NATIVE_ARCH=OFF -DFAST_MATH_USE_FORKUNION=OFF -DFAST_MATH_USE_COMMONCRYPTO=OFF -DFAST_MATH_USE_NAUTY=OFF
 	$(COMPUTE) --slots 4 --memory-mb 2048 --timeout-seconds 900 --label fast-math-portable-build -- cmake --build build-portable --parallel 4
-	$(COMPUTE) --slots 5 --memory-mb 4096 --timeout-seconds 1800 --label fast-math-portable-tests -- sh -c 'ctest --test-dir build-portable --output-on-failure && env PYTHONPATH=python FAST_MATH_LIBRARY="$$(find build-portable -maxdepth 3 -type f \( -name "libfast_math.dylib" -o -name "libfast_math.so" -o -name "fast_math.dll" \) | head -1)" $(PYTHON) -m pytest -q'
+	$(COMPUTE) --slots 10 --memory-mb 6144 --timeout-seconds 1800 --label fast-math-portable-tests -- sh -c 'ctest --test-dir build-portable --output-on-failure && env PYTHONPATH=python FAST_MATH_LIBRARY="$$(find build-portable -maxdepth 3 -type f \( -name "libfast_math.dylib" -o -name "libfast_math.so" -o -name "fast_math.dll" \) | head -1)" $(PYTHON) -m pytest -q -n 10'
 
 benchmark: build
 	$(COMPUTE) --slots 10 --memory-mb 4096 --timeout-seconds 1800 --label fast-math-benchmark -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_accumulate.py --case medium --backend both --threads 10 --repeats 3

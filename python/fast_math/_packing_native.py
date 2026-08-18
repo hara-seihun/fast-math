@@ -5,7 +5,7 @@ import ctypes
 import numpy as np
 from numpy.typing import NDArray
 
-from lambda_fast._native import load_library
+from ._native import load_library
 
 
 class NativeSquareCoverStats(ctypes.Structure):

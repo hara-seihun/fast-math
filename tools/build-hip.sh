@@ -3,7 +3,13 @@ set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 : "${HIP_PLATFORM:=amd}"
-: "${FAST_MATH_HIP_ARCH:=gfx1151}"
+if [[ -z "${FAST_MATH_HIP_ARCH:-}" ]]; then
+  FAST_MATH_HIP_ARCH=$(rocminfo | awk '$1 == "Name:" && $2 ~ /^gfx[0-9]+$/ && found == "" { found = $2 } END { print found }')
+  if [[ -z "$FAST_MATH_HIP_ARCH" ]]; then
+    printf 'fast-math: no AMD GPU architecture found through rocminfo\n' >&2
+    exit 1
+  fi
+fi
 
 # Resolve the split NixOS ROCm packages rather than pretending /run/current-
 # system/sw is a monolithic ROCm tree. Respect an already configured shell.
@@ -33,4 +39,5 @@ hipcc --offload-arch="$FAST_MATH_HIP_ARCH" \
   -O3 -fPIC -shared \
   "$root/cpp/src/hip_affine.hip" \
   "$root/cpp/src/hip_packing.hip" \
+  "$root/cpp/src/hip_subset_action.hip" \
   -o "$root/build/libfast_math_hip.so"

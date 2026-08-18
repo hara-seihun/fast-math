@@ -9,7 +9,7 @@ from fast_math import (
     undirected_csr,
 )
 from lambda_fast import available_backends
-from lambda_fast._native import load_library
+from fast_math._native import load_library
 
 
 NATIVE_AVAILABLE = (

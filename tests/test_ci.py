@@ -5,7 +5,7 @@ from itertools import permutations
 import numpy as np
 import pytest
 
-from lambda_fast._native import load_library
+from fast_math._native import load_library
 
 from fast_math.ci import (
     atom_subsets_to_element_words,

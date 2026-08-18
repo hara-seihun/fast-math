@@ -11,7 +11,7 @@ from typing import Literal
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from lambda_fast._native import (
+from ._native import (
     NativeUnavailable,
     sparse_block_coloops_mod_u32_native,
     sparse_rank_mod_u32_batch_native,

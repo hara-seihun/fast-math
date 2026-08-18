@@ -14,6 +14,13 @@ direction, backend contract, and evidence-based GPU priorities.
 
 ## Kernels
 
+- `fast_math.actions`: retained exact permutation actions on packed subsets,
+  including reference, native CPU, and HIP canonical-image and early-exit
+  canonical-minimum backends.
+- `fast_math.plans`: retained finite-group, Cayley-graph, and fixed-adjacency
+  canonicalization structures for repeated workloads.
+- `fast_math.runtime`: backend capability discovery without importing a domain
+  package as the native runtime owner.
 - `fast_math.graphs`: graph6 encoding/decoding,
   degree/edge/triangle/wedge/induced-P3 invariants, induced-subgraph class
   censuses, pair profiles, and clique or independent-set witnesses for graph
@@ -170,6 +177,7 @@ make finufft-prime-shell
 make metal
 make hip-test
 make mask-lut
+make subset-actions
 make filon
 ```
 
@@ -234,6 +242,8 @@ portable performance promises.
 | CUDA affine contour metrics, 1,024 x 4,097 synthetic points | 0.00271 s | 25.2x NumPy complex64 | Modal L4 validation |
 | HIP affine contour metrics, 4,096 x 13,661 points on local gfx1151 | 0.0195 s | 28.27x current NumPy affine route; 1.76x raw wall-time advantage over the retained 0.0343 s Metal shape | local `make hip-benchmark` receipt; zero winding disagreements |
 | Small packed-mask permutation, 64 permutations x 2,048 masks at degree 11 | 0.0018 s lookup apply | 49.1x Python bit-walk apply; exact output match | `make mask-lut` receipt |
+| HIP packed-subset canonical images, 262,144 masks x 504 degree-39 permutations | 0.01173 s vs 0.18263 s native CPU | 15.57x end-to-end retained-plan call; exact image and flag parity | local `make subset-actions` receipt |
+| HIP packed-subset canonical images, 1,000,000 masks x 41 degree-41 permutations | 0.00681 s vs 0.05902 s native CPU | 8.66x end-to-end retained-plan call; exact image and flag parity | local `make subset-actions` receipt |
 | Fixed-weight subset orbits, degree 41 / weight 8 / 95,548,245 subsets | 2.262 s | 2,330,445 exact orbit representatives without domain materialization | `make ci-weight-orbits` receipt |
 | Complete GL(3,3) action validation, 11,232 degree-27 rows | 0.725 s validation benchmark; 4.763 s first route stage vs 319.038 s prior | 67.0x end-to-end route-stage speedup; exact generated-order closure test | `make ci-weight-orbits` receipt |
 
@@ -351,11 +361,14 @@ kernels remain CPU paths. Their finite-field or interval contracts, irregular
 branching, or low arithmetic intensity do not map honestly to the current GPU
 precision and transfer model.
 
-For small CI search programs that repeatedly apply permutations to integer
-connection masks, use `u64_mask_lut` once per permutation and compose lookup
-tables before the candidate loop. This removes repeated Python set-bit walks;
-the table is intentionally bounded at degree 16, while larger actions should
-use the native packed orbit APIs instead.
+For small search programs that repeatedly apply permutations to integer masks,
+use `u64_mask_lut` once per permutation and compose lookup tables before the
+candidate loop. For batched actions through degree 64, use
+`PermutationActionPlan`: it retains the complete supplied permutation collection
+and byte tables across calls, provides deterministic canonical images and an
+early-exit canonical-minimum test, and dispatches sufficiently large measured
+shapes to HIP. The degree-16 tuple lookup remains useful inside tiny Python loops;
+the retained plan is the general batch interface.
 
 The compact Chebyshev-Filon contraction is still a plausible GPU target, but
 its accepted contract is complex128. MLX Metal does not execute float64, so a

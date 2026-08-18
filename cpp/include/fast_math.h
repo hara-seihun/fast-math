@@ -1,6 +1,7 @@
 #pragma once
 
-#include "lambda_fast.h"
+#include <cstddef>
+#include <cstdint>
 
 #if defined(_WIN32)
 #define FAST_MATH_API __declspec(dllexport)
@@ -152,6 +153,7 @@ struct fast_math_group_stats {
 };
 
 struct fast_math_permutation_group;
+struct fast_math_subset_action;
 
 struct fast_math_ci_stats {
   std::uint32_t degree;
@@ -279,6 +281,29 @@ FAST_MATH_API int fast_math_permutation_group_contains_u32(
     std::uint32_t thread_count,
     std::uint8_t* contains,
     fast_math_group_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_subset_action_create_u32(
+    const std::uint32_t* permutations,
+    std::size_t permutation_count,
+    std::uint32_t degree,
+    fast_math_subset_action** plan,
+    fast_math_ci_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API void fast_math_subset_action_destroy(
+    fast_math_subset_action* plan);
+
+FAST_MATH_API int fast_math_subset_action_canonicalize_u64(
+    const fast_math_subset_action* plan,
+    const std::uint64_t* masks,
+    std::size_t mask_count,
+    std::uint32_t thread_count,
+    std::uint64_t* canonical_masks,
+    std::uint8_t* is_canonical,
+    fast_math_ci_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 

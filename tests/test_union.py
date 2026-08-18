@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from fast_math import union_closed_family_masks
-from lambda_fast._native import union_closed_family_masks_native
+from fast_math._native import union_closed_family_masks_native
 
 
 def direct_union_closed(family_mask: int, ground_size: int) -> bool:

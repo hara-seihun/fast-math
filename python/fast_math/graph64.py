@@ -10,7 +10,7 @@ from typing import Iterable, Literal
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from lambda_fast._native import (
+from ._native import (
     NativeUnavailable,
     graph6_decode_native,
     graph6_encode_native,

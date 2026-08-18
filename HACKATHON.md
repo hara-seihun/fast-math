@@ -13,6 +13,7 @@ make finufft-cells
 make finufft-canopy
 make finufft-prime-shell
 make metal
+make subset-actions
 make union-closure
 ```
 
@@ -116,6 +117,11 @@ tools/run-compute.sh --slots 3 --memory-mb 2048 --timeout-seconds 900 \
 
 ## Group and Cayley-CI conventions
 
+- `PermutationActionPlan` minimizes the implicit identity image together with
+  its supplied permutation rows. Orbit language requires a complete finite
+  action and an invariant mask batch.
+- GPU action backends preserve exact `uint64` semantics and deterministic
+  numeric-minimum representatives; compare complete mask and flag arrays.
 - Permutations are image arrays: `p[x]` is the image of `x`; composition is
   `left[right]`.
 - Multiplication tables use `table[left, right] = left * right`; Cayley arcs
