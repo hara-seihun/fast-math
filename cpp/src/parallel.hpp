@@ -80,6 +80,7 @@ void parallel_for_dynamic_indexed(
             static_cast<std::size_t>(prong.task),
             static_cast<std::size_t>(prong.thread));
       });
+  pool.sleep(100);
 }
 
 template <typename Work>
@@ -106,6 +107,7 @@ void parallel_for_static_indexed(
             static_cast<std::size_t>(prong.task),
             static_cast<std::size_t>(prong.thread));
       });
+  pool.sleep(100);
 }
 
 #else

@@ -181,6 +181,37 @@ if(FAST_MATH_USE_FORKUNION)
   target_link_libraries(fast_math PRIVATE fast_math_forkunion)
   target_compile_definitions(fast_math PRIVATE FAST_MATH_USE_FORKUNION=1)
 
+  if(BUILD_TESTING)
+    add_executable(fast_math_parallel_idle_test
+      tests/parallel_idle_test.cpp
+    )
+    target_include_directories(
+      fast_math_parallel_idle_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/cpp/src
+    )
+    target_compile_features(
+      fast_math_parallel_idle_test
+      PRIVATE
+        cxx_std_20
+    )
+    target_compile_definitions(
+      fast_math_parallel_idle_test
+      PRIVATE
+        FAST_MATH_USE_FORKUNION=1
+    )
+    target_link_libraries(
+      fast_math_parallel_idle_test
+      PRIVATE
+        fast_math_forkunion
+        Threads::Threads
+    )
+    add_test(
+      NAME fast_math_parallel_idle
+      COMMAND fast_math_parallel_idle_test
+    )
+  endif()
+
   add_executable(fast_math_parallel_dispatch_benchmark
     benchmarks/benchmark_parallel_dispatch.cpp
   )

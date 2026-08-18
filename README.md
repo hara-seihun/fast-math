@@ -3,7 +3,8 @@
 Shared native compute kernels for mathematical research. Python defines the
 public APIs and executable reference models; C++20 performs high-volume
 arithmetic behind a small C ABI. Repeated native calls use pinned ForkUnion
-worker pools by default, with a build-time standard-thread fallback.
+worker pools by default, parking persistent workers between batches, with a
+build-time standard-thread fallback.
 
 `import lambda_fast`, `LAMBDA_FAST_LIBRARY`, `liblambda_fast`, and the
 `lambda_fast_*` C symbols remain supported compatibility interfaces.
@@ -363,9 +364,11 @@ matches a captured real autocorrelation and beats the warmed CPU baseline.
 
 The default build pins ForkUnion to the audited revision recorded in
 `THIRD_PARTY.md`. Persistent caller-inclusive pools are cached per calling
-thread and requested worker count. Balanced Taylor chunks use static slices;
-irregular graph, segment, accumulation, moments, and two-level jobs use dynamic
-work stealing. Disable the dependency with
+thread and requested worker count, then placed in ForkUnion's sleeping state
+after every batch so an intervening serial phase consumes no worker CPU. The
+next dispatch wakes the retained pool. Balanced Taylor chunks use static
+slices; irregular graph, segment, accumulation, moments, and two-level jobs use
+dynamic work stealing. Disable the dependency with
 `-DFAST_MATH_USE_FORKUNION=OFF` to use the equivalent standard-thread
 fallback.
 
