@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(fast_math VERSION 0.7.0 LANGUAGES C CXX)
+project(fast_math VERSION 0.8.0 LANGUAGES C CXX)
 
 option(
   FAST_MATH_NATIVE_ARCH
@@ -67,10 +67,12 @@ if(PkgConfig_FOUND)
 endif()
 
 set(FAST_MATH_CORE_SOURCES
+  cpp/src/cnf.cpp
   cpp/src/digest.cpp
   cpp/src/graph64.cpp
   cpp/src/groups.cpp
   cpp/src/large_graph.cpp
+  cpp/src/modular.cpp
   cpp/src/segments.cpp
   cpp/src/sparse_rank.cpp
   cpp/src/sparse_rank_batch.cpp

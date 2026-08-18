@@ -16,6 +16,7 @@ from .affine import (
     affine_steps,
     edge_bounds,
 )
+from ._field import field_array_u32, prime_u32
 
 
 class HipUnavailable(RuntimeError):
@@ -102,6 +103,61 @@ def _library() -> ctypes.CDLL:
                     ctypes.POINTER(ctypes.c_double),
                 ]
                 library.fast_math_hip_square_weighted_evaluate.restype = ctypes.c_int
+            if hasattr(library, "fast_math_hip_cnf_create"):
+                library.fast_math_hip_cnf_create.argtypes = [
+                    ctypes.POINTER(ctypes.c_uint64),
+                    ctypes.c_size_t,
+                    ctypes.POINTER(ctypes.c_int32),
+                    ctypes.c_size_t,
+                    ctypes.c_uint32,
+                    ctypes.POINTER(ctypes.c_void_p),
+                ]
+                library.fast_math_hip_cnf_create.restype = ctypes.c_int
+                library.fast_math_hip_cnf_destroy.argtypes = [ctypes.c_void_p]
+                library.fast_math_hip_cnf_destroy.restype = ctypes.c_int
+                library.fast_math_hip_cnf_evaluate.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.POINTER(ctypes.c_uint64),
+                    ctypes.c_size_t,
+                    ctypes.c_uint32,
+                    ctypes.POINTER(ctypes.c_int64),
+                ]
+                library.fast_math_hip_cnf_evaluate.restype = ctypes.c_int
+            if hasattr(library, "fast_math_hip_polynomial_create"):
+                library.fast_math_hip_polynomial_create.argtypes = [
+                    ctypes.POINTER(ctypes.c_uint32),
+                    ctypes.c_size_t,
+                    ctypes.c_size_t,
+                    ctypes.c_uint32,
+                    ctypes.POINTER(ctypes.c_void_p),
+                ]
+                library.fast_math_hip_polynomial_create.restype = ctypes.c_int
+                library.fast_math_hip_polynomial_destroy.argtypes = [ctypes.c_void_p]
+                library.fast_math_hip_polynomial_destroy.restype = ctypes.c_int
+                library.fast_math_hip_polynomial_evaluate.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.POINTER(ctypes.c_uint32),
+                    ctypes.c_size_t,
+                    ctypes.c_uint8,
+                    ctypes.POINTER(ctypes.c_uint32),
+                    ctypes.POINTER(ctypes.c_uint32),
+                ]
+                library.fast_math_hip_polynomial_evaluate.restype = ctypes.c_int
+                library.fast_math_hip_determinant_create.argtypes = [
+                    ctypes.c_uint32,
+                    ctypes.c_uint32,
+                    ctypes.POINTER(ctypes.c_void_p),
+                ]
+                library.fast_math_hip_determinant_create.restype = ctypes.c_int
+                library.fast_math_hip_determinant_destroy.argtypes = [ctypes.c_void_p]
+                library.fast_math_hip_determinant_destroy.restype = ctypes.c_int
+                library.fast_math_hip_determinants.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.POINTER(ctypes.c_uint32),
+                    ctypes.c_size_t,
+                    ctypes.POINTER(ctypes.c_uint32),
+                ]
+                library.fast_math_hip_determinants.restype = ctypes.c_int
             if hasattr(library, "fast_math_hip_subset_action_create"):
                 library.fast_math_hip_subset_action_create.argtypes = [
                     ctypes.POINTER(ctypes.c_uint32),
@@ -143,6 +199,20 @@ def hip_available() -> bool:
     return True
 
 
+def hip_cnf_available() -> bool:
+    try:
+        return hasattr(_library(), "fast_math_hip_cnf_create")
+    except HipUnavailable:
+        return False
+
+
+def hip_modular_available() -> bool:
+    try:
+        return hasattr(_library(), "fast_math_hip_polynomial_create")
+    except HipUnavailable:
+        return False
+
+
 def hip_subset_actions_available() -> bool:
     try:
         return hasattr(_library(), "fast_math_hip_subset_action_create")
@@ -157,6 +227,274 @@ def _pointer(array: NDArray[np.generic], dtype) -> ctypes.Array:
 def _check(code: int, operation: str) -> None:
     if code != 0:
         raise RuntimeError(f"HIP {operation} failed with status {code}")
+
+
+class CnfHipPlan:
+    """Persistent HIP clause storage for exact assignment checking."""
+
+    backend = "hip"
+
+    def __init__(
+        self,
+        clause_offsets: ArrayLike,
+        literals: ArrayLike,
+        variable_count: int,
+    ) -> None:
+        if (
+            not isinstance(variable_count, (int, np.integer))
+            or not 1 <= int(variable_count) <= np.iinfo(np.uint32).max
+        ):
+            raise ValueError("variable_count must be a positive uint32")
+        self.variable_count = int(variable_count)
+        offsets_raw = np.asarray(clause_offsets)
+        literals_raw = np.asarray(literals)
+        if offsets_raw.ndim != 1 or not np.issubdtype(offsets_raw.dtype, np.integer):
+            raise ValueError("clause_offsets must be a one-dimensional integer array")
+        if literals_raw.ndim != 1 or not np.issubdtype(literals_raw.dtype, np.integer):
+            raise ValueError("literals must be a one-dimensional integer array")
+        if np.issubdtype(offsets_raw.dtype, np.signedinteger) and np.any(offsets_raw < 0):
+            raise ValueError("clause offsets must be nonnegative")
+        if (
+            np.any(literals_raw < np.iinfo(np.int32).min)
+            or np.any(literals_raw > np.iinfo(np.int32).max)
+        ):
+            raise ValueError("CNF literal must fit int32")
+        offsets = np.array(offsets_raw, dtype=np.uint64, order="C", copy=True)
+        literals_array = np.array(literals_raw, dtype=np.int64, order="C", copy=True)
+        if (
+            len(offsets) == 0
+            or offsets[0] != 0
+            or offsets[-1] != len(literals_array)
+            or np.any(offsets[1:] < offsets[:-1])
+            or np.any(literals_array == 0)
+            or np.any(np.abs(literals_array) > self.variable_count)
+        ):
+            raise ValueError("CNF offsets or literals are invalid")
+        literals_i32 = literals_array.astype(np.int32)
+        library = _library()
+        if not hasattr(library, "fast_math_hip_cnf_create"):
+            raise HipUnavailable("HIP CNF support is not built")
+        handle = ctypes.c_void_p()
+        literal_pointer = (
+            _pointer(literals_i32, ctypes.c_int32)
+            if len(literals_i32)
+            else ctypes.POINTER(ctypes.c_int32)()
+        )
+        _check(
+            library.fast_math_hip_cnf_create(
+                _pointer(offsets, ctypes.c_uint64),
+                len(offsets) - 1,
+                literal_pointer,
+                len(literals_i32),
+                self.variable_count,
+                ctypes.byref(handle),
+            ),
+            "CNF plan creation",
+        )
+        if not handle.value:
+            raise RuntimeError("HIP CNF plan returned a null handle")
+        self._library = library
+        self._handle = handle
+        self._clause_offsets = offsets
+        self._literals = literals_i32
+
+    @property
+    def word_count(self) -> int:
+        return (self.variable_count + 63) // 64
+
+    def evaluate(
+        self,
+        assignments: ArrayLike,
+    ) -> tuple[NDArray[np.int64], float]:
+        if not self._handle.value:
+            raise RuntimeError("HIP CNF plan is closed")
+        raw = np.asarray(assignments)
+        if (
+            raw.ndim != 2
+            or raw.shape[1] != self.word_count
+            or not np.issubdtype(raw.dtype, np.integer)
+        ):
+            raise ValueError("assignments have an invalid packed shape")
+        if np.issubdtype(raw.dtype, np.signedinteger) and np.any(raw < 0):
+            raise ValueError("assignment words must be nonnegative")
+        prepared = np.ascontiguousarray(raw, dtype=np.uint64)
+        final_bits = self.variable_count % 64
+        if final_bits and np.any(prepared[:, -1] >> np.uint64(final_bits)):
+            raise ValueError("assignment contains an out-of-range bit")
+        first = np.empty(len(prepared), dtype=np.int64)
+        started = time.perf_counter()
+        _check(
+            self._library.fast_math_hip_cnf_evaluate(
+                self._handle,
+                _pointer(prepared, ctypes.c_uint64),
+                len(prepared),
+                self.word_count,
+                _pointer(first, ctypes.c_int64),
+            ),
+            "CNF evaluation",
+        )
+        return first, time.perf_counter() - started
+
+    def close(self) -> None:
+        handle, self._handle = self._handle, ctypes.c_void_p()
+        if handle.value:
+            _check(
+                self._library.fast_math_hip_cnf_destroy(handle),
+                "CNF plan destruction",
+            )
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
+class ModularPolynomialHipPlan:
+    """Persistent HIP coefficients for exact prime-field evaluation."""
+
+    backend = "hip"
+
+    def __init__(self, coefficients: ArrayLike, prime: int) -> None:
+        self.prime = prime_u32(prime)
+        values = field_array_u32(
+            coefficients, self.prime, dimensions=2, own=True
+        )
+        if values.shape[0] == 0 or values.shape[1] == 0:
+            raise ValueError("coefficients must have nonzero shape")
+        library = _library()
+        if not hasattr(library, "fast_math_hip_polynomial_create"):
+            raise HipUnavailable("HIP modular polynomial support is not built")
+        handle = ctypes.c_void_p()
+        _check(
+            library.fast_math_hip_polynomial_create(
+                _pointer(values.reshape(-1), ctypes.c_uint32),
+                values.shape[0],
+                values.shape[1],
+                self.prime,
+                ctypes.byref(handle),
+            ),
+            "modular polynomial plan creation",
+        )
+        if not handle.value:
+            raise RuntimeError("HIP modular polynomial plan returned a null handle")
+        self._library = library
+        self._handle = handle
+        self._coefficients = values
+
+    @property
+    def polynomial_count(self) -> int:
+        return self._coefficients.shape[0]
+
+    def evaluate(
+        self,
+        points: ArrayLike,
+        *,
+        derivative: bool,
+    ) -> tuple[NDArray[np.uint32], NDArray[np.uint32] | None, float]:
+        if not self._handle.value:
+            raise RuntimeError("HIP modular polynomial plan is closed")
+        prepared = field_array_u32(
+            points, self.prime, dimensions=1, own=False
+        )
+        values = np.empty((self.polynomial_count, len(prepared)), dtype=np.uint32)
+        derivatives = np.empty_like(values) if derivative else None
+        derivative_pointer = (
+            _pointer(derivatives, ctypes.c_uint32)
+            if derivatives is not None
+            else ctypes.POINTER(ctypes.c_uint32)()
+        )
+        started = time.perf_counter()
+        _check(
+            self._library.fast_math_hip_polynomial_evaluate(
+                self._handle,
+                _pointer(prepared, ctypes.c_uint32),
+                len(prepared),
+                int(derivative),
+                _pointer(values, ctypes.c_uint32),
+                derivative_pointer,
+            ),
+            "modular polynomial evaluation",
+        )
+        return values, derivatives, time.perf_counter() - started
+
+    def close(self) -> None:
+        handle, self._handle = self._handle, ctypes.c_void_p()
+        if handle.value:
+            _check(
+                self._library.fast_math_hip_polynomial_destroy(handle),
+                "modular polynomial plan destruction",
+            )
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
+class ModularDeterminantHipPlan:
+    """Persistent HIP workspace for exact small dense determinants."""
+
+    backend = "hip"
+
+    def __init__(self, order: int, prime: int) -> None:
+        self.prime = prime_u32(prime)
+        if not isinstance(order, (int, np.integer)) or not 1 <= int(order) <= 32:
+            raise ValueError("HIP determinant order must be between one and 32")
+        self.order = int(order)
+        library = _library()
+        if not hasattr(library, "fast_math_hip_determinant_create"):
+            raise HipUnavailable("HIP modular determinant support is not built")
+        handle = ctypes.c_void_p()
+        _check(
+            library.fast_math_hip_determinant_create(
+                self.order, self.prime, ctypes.byref(handle)
+            ),
+            "modular determinant plan creation",
+        )
+        if not handle.value:
+            raise RuntimeError("HIP modular determinant plan returned a null handle")
+        self._library = library
+        self._handle = handle
+
+    def determinants(
+        self,
+        matrices: ArrayLike,
+    ) -> tuple[NDArray[np.uint32], float]:
+        if not self._handle.value:
+            raise RuntimeError("HIP modular determinant plan is closed")
+        prepared = field_array_u32(
+            matrices, self.prime, dimensions=3, own=False
+        )
+        if prepared.shape[1:] != (self.order, self.order):
+            raise ValueError("matrix shape does not match the determinant plan")
+        determinants = np.empty(len(prepared), dtype=np.uint32)
+        started = time.perf_counter()
+        _check(
+            self._library.fast_math_hip_determinants(
+                self._handle,
+                _pointer(prepared, ctypes.c_uint32),
+                len(prepared),
+                _pointer(determinants, ctypes.c_uint32),
+            ),
+            "modular determinants",
+        )
+        return determinants, time.perf_counter() - started
+
+    def close(self) -> None:
+        handle, self._handle = self._handle, ctypes.c_void_p()
+        if handle.value:
+            _check(
+                self._library.fast_math_hip_determinant_destroy(handle),
+                "modular determinant plan destruction",
+            )
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 def _subset_permutations(values: ArrayLike) -> NDArray[np.uint32]:

@@ -10,7 +10,9 @@ build-time standard-thread fallback.
 `lambda_fast_*` C symbols remain supported compatibility interfaces.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the core/domain boundary, retained-plan
-direction, backend contract, and evidence-based GPU priorities.
+direction, backend contract, and evidence-based GPU priorities. See
+[`EXPLORATION.md`](EXPLORATION.md) for the installed specialist-system survey and
+the exact modular/CNF certification-batch contracts.
 
 ## Kernels
 
@@ -21,6 +23,10 @@ direction, backend contract, and evidence-based GPU priorities.
   canonicalization structures for repeated workloads.
 - `fast_math.runtime`: backend capability discovery without importing a domain
   package as the native runtime owner.
+- `fast_math.modular`: retained exact uint32-prime polynomial value/derivative
+  batches and dense determinant batches across reference, native CPU, and HIP.
+- `fast_math.cnf`: retained DIMACS-style clause plans with exact packed
+  assignment verification and first-unsatisfied-clause witnesses on CPU and HIP.
 - `fast_math.graphs`: graph6 encoding/decoding,
   degree/edge/triangle/wedge/induced-P3 invariants, induced-subgraph class
   censuses, pair profiles, and clique or independent-set witnesses for graph
@@ -178,6 +184,8 @@ make metal
 make hip-test
 make mask-lut
 make subset-actions
+make modular-batches
+make cnf-verification
 make filon
 ```
 
@@ -244,6 +252,10 @@ portable performance promises.
 | Small packed-mask permutation, 64 permutations x 2,048 masks at degree 11 | 0.0018 s lookup apply | 49.1x Python bit-walk apply; exact output match | `make mask-lut` receipt |
 | HIP packed-subset canonical images, 262,144 masks x 504 degree-39 permutations | 0.01173 s vs 0.18263 s native CPU | 15.57x end-to-end retained-plan call; exact image and flag parity | local `make subset-actions` receipt |
 | HIP packed-subset canonical images, 1,000,000 masks x 41 degree-41 permutations | 0.00681 s vs 0.05902 s native CPU | 8.66x end-to-end retained-plan call; exact image and flag parity | local `make subset-actions` receipt |
+| HIP modular polynomial values + derivatives, 128 x 65 coefficients / 1,024 points | 0.000426 s vs 0.3060 s SageMath | 718.9x end-to-end; native CPU is 59.6x SageMath; complete exact parity | local `make modular-batches` receipt |
+| Native modular determinants, 1,000 x 8 x 8 | 0.000341 s vs 0.00919 s python-flint / 0.0657 s SageMath | 26.9x / 192.5x end-to-end; complete exact parity | local `make modular-batches` receipt |
+| HIP CNF valid-model checks, 100,000 assignments / 128 variables / 1,024 clauses | 0.00120 s vs 0.02857 s native CPU | 23.8x retained-plan call; exact acceptance and failure-index parity | local `make cnf-verification` receipt |
+| Native CNF valid-model checks, 1,000 assignments / same formula | 0.000464 s vs 0.4949 s executable Python reference | 1,066x end-to-end; exact inspected-literal and witness parity | local `make cnf-verification` receipt |
 | Fixed-weight subset orbits, degree 41 / weight 8 / 95,548,245 subsets | 2.262 s | 2,330,445 exact orbit representatives without domain materialization | `make ci-weight-orbits` receipt |
 | Complete GL(3,3) action validation, 11,232 degree-27 rows | 0.725 s validation benchmark; 4.763 s first route stage vs 319.038 s prior | 67.0x end-to-end route-stage speedup; exact generated-order closure test | `make ci-weight-orbits` receipt |
 

@@ -39,8 +39,10 @@ def backend_capabilities() -> dict[str, BackendCapability]:
             exact_integer=True,
             precisions=("float64", "complex128", "uint64"),
             operations=(
+                "CNF assignment verification",
                 "graphs",
                 "groups",
+                "modular polynomials and determinants",
                 "packed subset actions",
                 "sparse finite-field rank",
                 "reductions",
@@ -54,6 +56,8 @@ def backend_capabilities() -> dict[str, BackendCapability]:
             precisions=("float32", "float64", "uint64"),
             operations=(
                 "affine populations",
+                "CNF assignment verification",
+                "modular polynomials and determinants",
                 "oriented-square incidence",
                 "packed subset actions",
             ),

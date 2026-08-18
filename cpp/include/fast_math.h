@@ -97,6 +97,25 @@ struct fast_math_union_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_modular_stats {
+  std::uint64_t batch_count;
+  std::uint64_t item_count;
+  std::uint64_t operation_count;
+  std::uint32_t prime;
+  std::uint32_t thread_count;
+  double elapsed_seconds;
+};
+
+struct fast_math_cnf_stats {
+  std::uint32_t variable_count;
+  std::uint64_t clause_count;
+  std::uint64_t literal_count;
+  std::uint64_t assignment_count;
+  std::uint64_t inspected_literal_count;
+  std::uint32_t thread_count;
+  double elapsed_seconds;
+};
+
 struct fast_math_sparse_rank_stats {
   std::uint64_t row_count;
   std::uint64_t column_count;
@@ -152,6 +171,7 @@ struct fast_math_group_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_cnf_plan;
 struct fast_math_permutation_group;
 struct fast_math_subset_action;
 
@@ -678,6 +698,55 @@ FAST_MATH_API int fast_math_union_closed_family_masks_u64(
     std::uint32_t ground_size,
     std::uint8_t* closed,
     fast_math_union_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_cnf_create_i32(
+    const std::uint64_t* clause_offsets,
+    std::size_t clause_count,
+    const std::int32_t* literals,
+    std::size_t literal_count,
+    std::uint32_t variable_count,
+    fast_math_cnf_plan** plan,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API void fast_math_cnf_destroy(fast_math_cnf_plan* plan);
+
+FAST_MATH_API int fast_math_cnf_evaluate_u64(
+    const fast_math_cnf_plan* plan,
+    const std::uint64_t* assignment_words,
+    std::size_t assignment_count,
+    std::uint32_t word_count,
+    std::uint32_t thread_count,
+    std::uint8_t* satisfied,
+    std::int64_t* first_unsatisfied_clause,
+    fast_math_cnf_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_polynomial_evaluate_mod_u32(
+    const std::uint32_t* coefficients,
+    std::size_t polynomial_count,
+    std::size_t coefficient_count,
+    const std::uint32_t* points,
+    std::size_t point_count,
+    std::uint32_t prime,
+    std::uint32_t thread_count,
+    std::uint32_t* values,
+    std::uint32_t* derivatives,
+    fast_math_modular_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_determinants_mod_u32(
+    const std::uint32_t* matrices,
+    std::size_t matrix_count,
+    std::uint32_t order,
+    std::uint32_t prime,
+    std::uint32_t thread_count,
+    std::uint32_t* determinants,
+    fast_math_modular_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 

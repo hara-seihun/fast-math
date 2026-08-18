@@ -1,5 +1,14 @@
 """High-throughput native kernels shared across mathematical research."""
 
+from .cnf import CnfBackend, CnfEvaluation, CnfPlan, pack_boolean_assignments
+from .modular import (
+    ModularBackend,
+    ModularDeterminantBatch,
+    ModularDeterminantPlan,
+    ModularPolynomialEvaluation,
+    ModularPolynomialPlan,
+    determinants_mod_u32,
+)
 from .runtime import BackendCapability, backend_capabilities
 from .actions import (
     ActionBackend,
@@ -71,6 +80,8 @@ from .hip import (
     SquareCoverHipPlan,
     SubsetActionHipPlan,
     hip_available,
+    hip_cnf_available,
+    hip_modular_available,
     hip_subset_actions_available,
 )
 from .large_graph import (
@@ -194,6 +205,9 @@ __all__ = [
     "BackendCapability",
     "CanonicalMaskBatch",
     "CayleyGraphPlan",
+    "CnfBackend",
+    "CnfEvaluation",
+    "CnfPlan",
     "CliqueBatchResult",
     "CommonNeighborBatch",
     "CudaUnavailable",
@@ -212,6 +226,11 @@ __all__ = [
     "FilonInnerProductResult",
     "MaskOrbitPartition",
     "MetalUnavailable",
+    "ModularBackend",
+    "ModularDeterminantBatch",
+    "ModularDeterminantPlan",
+    "ModularPolynomialEvaluation",
+    "ModularPolynomialPlan",
     "PairCounts",
     "PermutationActionPlan",
     "PackingBackend",
@@ -250,6 +269,7 @@ __all__ = [
     "delete_graph_vertices",
     "encode_graph6",
     "digest_u64_rows",
+    "determinants_mod_u32",
     "dirichlet_inverse",
     "fused_two_level",
     "evaluate_taylor_basis",
@@ -259,10 +279,13 @@ __all__ = [
     "filon_chebyshev_inner_product",
     "graph_invariants",
     "hip_available",
+    "hip_cnf_available",
+    "hip_modular_available",
     "hip_subset_actions_available",
     "native_version",
     "oriented_square_cover_words",
     "oriented_square_weighted_scores",
+    "pack_boolean_assignments",
     "pack_digraph_adjacency",
     "power_moments",
     "graph_pair_profiles",

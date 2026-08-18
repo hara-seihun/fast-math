@@ -108,7 +108,7 @@ void validate_arguments(
 extern "C" {
 
 const char* fast_math_version() {
-  return "0.7.0";
+  return "0.8.0";
 }
 
 const char* lambda_fast_version() {

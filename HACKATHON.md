@@ -14,6 +14,8 @@ make finufft-canopy
 make finufft-prime-shell
 make metal
 make subset-actions
+make modular-batches
+make cnf-verification
 make union-closure
 ```
 
@@ -92,6 +94,20 @@ tools/run-compute.sh --slots 3 --memory-mb 2048 --timeout-seconds 900 \
   --label fast-math-verify-build -- \
   cmake --build build-verify --parallel 3
 ```
+
+## Exact modular and certificate conventions
+
+- Prime-field APIs reject composite moduli and noncanonical representatives.
+- Polynomial coefficients are low-to-high. Fused derivatives use the exact
+  Horner recurrence and must match complete reference arrays.
+- Dense determinant APIs return determinants only. Do not infer an unreturned
+  rank, inverse, or nonsingular-minor certificate.
+- CNF literals use DIMACS signs and one-based variable numbers. Packed
+  assignment bit zero is variable one.
+- CNF acceptance scans every clause. Rejection returns the first unsatisfied
+  clause in input order. This is model verification, not an UNSAT proof.
+- Auto CNF dispatch samples actual inspected-literal work because random
+  rejected candidates can exit orders of magnitude earlier than valid models.
 
 ## Graph conventions
 

@@ -38,6 +38,8 @@ mkdir -p "$root/build"
 hipcc --offload-arch="$FAST_MATH_HIP_ARCH" \
   -O3 -fPIC -shared \
   "$root/cpp/src/hip_affine.hip" \
+  "$root/cpp/src/hip_cnf.hip" \
+  "$root/cpp/src/hip_modular.hip" \
   "$root/cpp/src/hip_packing.hip" \
   "$root/cpp/src/hip_subset_action.hip" \
   -o "$root/build/libfast_math_hip.so"

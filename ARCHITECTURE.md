@@ -131,6 +131,8 @@ higher-precision validation.
 | Primitive | Suitability | Reason |
 | --- | --- | --- |
 | Packed subset permutation and canonical-minimum tests | Shipped on CPU and HIP | Retained exact byte-lookup plans, compact outputs, deterministic parity, and many CI consumers |
+| Prime-field polynomial values/derivatives and small dense determinants | Shipped on CPU and HIP | Regular exact uint32 arithmetic, retained coefficients/workspaces, compact outputs, and SageMath/FLINT parity |
+| Packed CNF assignment verification | Shipped on CPU and HIP | Retained clauses, independent candidate certificates, compact failure witnesses, and sampled dispatch for early rejection |
 | Batched relation histograms and selected WL refinement stages | Promising | Dense repeated exact counts; requires deterministic color compaction and a real route benchmark |
 | Batched graph invariants and dense incidence predicates | Promising at large batch sizes | Regular work and compact reductions; CPU remains preferable for small batches |
 | Cayley adjacency construction | Conditional | Simple exact parallel work, but useful only when the next stage can consume device-resident adjacency |
