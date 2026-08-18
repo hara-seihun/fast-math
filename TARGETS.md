@@ -23,6 +23,7 @@ representative benchmark shows material time or memory cost.
 | Batched nauty canonical digraphs | Union-closed factor-type enumeration and shard merging | Canonical permutations, canonical adjacency/colors, batch isomorphism classes, automorphism group sizes, orbit counts, and generator permutations for directed vertex-colored graphs. |
 | Permutation groups and Cayley-CI pipeline | Cayley-CI atlas, derivative-orbit, and coherent-configuration routes | Exact permutation orbits, reusable immutable stabilizer chains, deterministic Schreier-Sims order/membership, explicit double cosets, complete-action and generated-action inverse-closed subset quotients, native atom expansion, batched Cayley construction, TLS-parallel nauty, R-0805 derivative orbits, and 2-WL basic relations with separate refinement-only output or verified intersection numbers through degree/order 512. On the local Ryzen AI Max+ 395, the complete 13-group atlas reproduces 11,664 first-quotient orbits and 9,606 graph fibers exactly in 0.09601842903066427 s median, 52.333918808805166x faster end to end than Python/NetworkX/`labelg`. The representative GAP process route for order, point orbits, and membership is 1323.7553063434973x slower than `PermutationGroup`. |
 | Packed union-closure batches | Three-minimal-generators and singleton-channel nonproduct scouts | Return exact closure flags for `uint64` family-membership masks on ground sets through size six, using a portable native backend with an executable NumPy reference. On Modal portable x86_64, 65,535 ground-four families fell from 0.004867 s to 0.000968 s median (5.03x), random 65,536-family ground-five and ground-six batches improved 11.75x and 50.59x, and complete outputs were identical. End-to-end retained route wall time improved 1.067x and 1.031x. |
+| Batched adaptive oracle areas | Adaptive-oracle-area depth-two hull search, Plackett-Luce block engine, and exact supersolution probes | Solve the optimal legal adaptive policy on the ternary restriction lattice of `{-1,+1}^n` for a batch of targets in one descending scan, returning root area, optimal first query, and complete per-restriction variance, area, and policy arrays. The exact backend carries `A(rho) * 4^n * 2^(n-fixed)` so no division occurs, reports numerators over `2^(3n)`, and errors rather than wrapping. Both backends reproduce the campaign's independent `Fraction` and float engines exactly. Per target this is 300x to 900x the memo-dictionary route: `n=13` fell from 17.006 s to 0.040 s and `n=16` now solves in 1.407 s where the earlier route was unreachable. Batched search loops reach 446,120 targets/s at `n=6` and 65,453/s at `n=8` on eight threads. |
 | Induced-subgraph profiles | Graph reconstruction attachment-rigidity shards | Count caller-defined canonical classes through order seven, hoisting bounded subset edge probes across the graph batch. |
 | Multi-order induced-profile stacks | Reconstruction profile certificates and collision scans | Validate and dispatch once, then concatenate exact class counts for several induced orders. |
 | Rigorous Arb cache accumulation | Lambda B-process source caches | Reuse caller-owned Arb/Acb scratch state and one rigorous weight per index while preserving binary64 centers and directed interval sums. |
@@ -94,6 +95,42 @@ Fast Math admission bar. Evidence:
 `problems/riemann-hypothesis/scratch/proof-system--fast-math-l01479-downstream-profile/profile.json`.
 
 ## Next
+
+### Subgroup backtrack, centralizers, and normalizers
+
+Evidenced 2026-08-18 from the Cayley-CI alignment corpus. `fast_math.groups`
+ships orbits, immutable stabilizer chains, order, membership, and double
+cosets, but every route needing a centralizer, normalizer, subgroup lattice,
+semiregular or regular subgroup enumeration, or conjugacy of subgroups leaves
+the library. Two artifacts state the gap directly: the colour-holonomy image
+frontier note records "Fast Math has no centralizer or subgroup-backtrack API"
+and falls back to GAP for automorphism groups, centralizers, and normalizers,
+and the polycirculant counterexample note records the missing finite-field
+module-submodule, group-cohomology, and subgroup-class APIs. A 665-line parity
+script reimplements `perm_mul`, `perm_inv`, `perm_conj`, group closure, graph
+automorphism backtracking, semiregular subgroup enumeration, subgroup
+conjugacy labels, centers, and group isomorphism search in pure Python tuples.
+Ship the group-side primitives before the specialized transporter contracts:
+centralizer and normalizer of a subgroup, subgroup closure and conjugacy
+classes, and automorphism generators for a colored graph reusing the existing
+nauty path. GAP stays the independent reference model, not the production
+route.
+
+### Fused finite-field enumerate-and-reduce
+
+Evidenced 2026-08-18 from the Cayley-CI Gale-circuit corpus. The modular and
+modular-linear kernels take prepared batches, which is the wrong shape when the
+batch is generated combinatorially: an exhaustive shear-profile search over
+`GL`-gauge orbits builds a 2,496-by-500 `F_5` system per profile across millions
+of profiles, so no caller can materialize the batch. Agents therefore hand-write
+OpenMP C++ into `/tmp`, outside every reference-parity, determinism, and
+certificate contract; one such run held an agent lane for three hours and
+produced no output. The missing contract is a retained plan that owns the
+enumeration: a declared finite-field domain, a per-element row generator, and
+an incremental echelon with a rank threshold and early exit, returning
+witnesses rather than a materialized batch. Require an executable reference
+model over a bounded domain and exact parity with the existing
+`modular_linear` RREF and nullspace semantics.
 
 ### FINUFFT plan-pool migration
 
