@@ -81,6 +81,7 @@ set(FAST_MATH_CORE_SOURCES
 )
 
 set(FAST_MATH_DOMAIN_SOURCES
+  cpp/src/adaptive.cpp
   cpp/src/ci.cpp
   cpp/src/filon.cpp
   cpp/src/packing.cpp

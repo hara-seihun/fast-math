@@ -47,6 +47,10 @@ the exact modular/CNF certification-batch contracts.
   coherent-configuration/2-WL refinement with intersection numbers, and
   bounded-degree `u64_mask_lut`/`compose_u64_mask_luts` microkernels for
   Python search loops over small packed connection masks.
+- `fast_math.adaptive`: batched optimal adaptive-oracle areas over the ternary
+  restriction lattice of `{-1,+1}^n`, with float and exact-integer Bellman
+  backends, per-restriction conditional variances, optimal first queries, and
+  the complete optimal-policy array.
 - `fast_math.reductions`: deterministic power moments and segmented complex
   sums, L1 masses, and total variations.
 - `fast_math.packing`: AVX-512/multicore and persistent-HIP oriented-square
@@ -173,6 +177,7 @@ make graphs
 make groups-ci
 make derivative-rank6
 make ci-weight-orbits
+make adaptive-area
 make union
 make union-closure
 make union-closure-routes
@@ -505,6 +510,51 @@ independent canonical searches. A representative degree-18 order, point-orbit,
 and membership route takes `0.0011079729697667062` seconds through a retained
 `PermutationGroup`, `1323.7553063434973x` faster than the equivalent GAP process
 route with identical output.
+
+## Adaptive oracle area contract
+
+`adaptive_areas` and `exact_adaptive_areas` solve the optimal legal adaptive
+query policy for real targets on the Rademacher cube `{-1,+1}^n`. A target is a
+table of length `2**n`; bit `i` of the point index is `0` for `X_i = -1` and `1`
+for `X_i = +1`. A restriction is a code in `range(3**n)` whose base-three digit
+`i` is `0` for free, `1` for `X_i = -1`, and `2` for `X_i = +1`. The recursion is
+
+```text
+A(rho) = 0                              when Var(g | rho) = 0
+A(rho) = Var(g | rho) + min over fresh i of
+         ( A(rho, X_i = -1) + A(rho, X_i = +1) ) / 2
+```
+
+Fixing a free coordinate strictly increases the restriction code, so one
+descending scan of the lattice solves every state in `O(n * 3**n)` with two
+`3**n` arrays per worker and no recursion, memo dictionary, or tuple key.
+
+```python
+import numpy as np
+from fast_math import adaptive_areas, exact_adaptive_areas, quadratic_target_tables
+
+batch = adaptive_areas(tables, threads=8, restrictions=True)
+batch.areas                  # root area per target
+batch.first_coordinates      # optimal first query, -1 for a constant target
+batch.variances              # Var(g | rho) for every restriction
+batch.areas_by_restriction   # A(rho) for every restriction
+batch.policies               # optimal query per restriction, -1 at a leaf
+```
+
+`exact_adaptive_areas` runs the same recursion in integers for integer-valued
+targets. Variance numerators use denominator `4**n` and area numerators use
+denominator `2**(3*n)`; `ExactAdaptiveAreaBatch.areas()` returns exact
+`Fraction` values. Overflow of the int64 numerators is an error, never a wrapped
+result, and table entries must satisfy `2**n * max(entry**2) < 2**62`.
+
+`quadratic_target_tables` expands degree-two Walsh data `(a, b)` into the full
+tables, so a search that stores only linear and pair coefficients does not need
+a second Bellman implementation. Ties choose the smallest optimal coordinate, so
+both backends and every thread count return bitwise identical policies.
+
+`zero_tolerance` prunes a subcube whose float variance falls to the given
+threshold. Use `0.0` for the mathematically exact rule and a positive value only
+as an explicit numerical policy.
 
 ## Fixed-width digest contract
 

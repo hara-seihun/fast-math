@@ -198,6 +198,16 @@ class NativeUnionStats(ctypes.Structure):
     ]
 
 
+class NativeAdaptiveStats(ctypes.Structure):
+    _fields_ = [
+        ("target_count", ctypes.c_uint64),
+        ("restriction_count", ctypes.c_uint64),
+        ("coordinate_count", ctypes.c_uint64),
+        ("worker_count", ctypes.c_uint64),
+        ("elapsed_seconds", ctypes.c_double),
+    ]
+
+
 class NativeSparseRankStats(ctypes.Structure):
     _fields_ = [
         ("row_count", ctypes.c_uint64),
@@ -683,6 +693,38 @@ def load_library() -> ctypes.CDLL:
             library.fast_math_union_closed_family_masks_u64.restype = (
                 ctypes.c_int
             )
+        if hasattr(library, "fast_math_adaptive_area_f64"):
+            library.fast_math_adaptive_area_f64.argtypes = [
+                ctypes.POINTER(ctypes.c_double),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_double,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_double),
+                ctypes.POINTER(ctypes.c_int32),
+                ctypes.POINTER(ctypes.c_double),
+                ctypes.POINTER(ctypes.c_double),
+                ctypes.POINTER(ctypes.c_int8),
+                ctypes.POINTER(NativeAdaptiveStats),
+                ctypes.POINTER(ctypes.c_char),
+                ctypes.c_size_t,
+            ]
+            library.fast_math_adaptive_area_f64.restype = ctypes.c_int
+            library.fast_math_adaptive_area_exact_i64.argtypes = [
+                ctypes.POINTER(ctypes.c_int64),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_int64),
+                ctypes.POINTER(ctypes.c_int32),
+                ctypes.POINTER(ctypes.c_int64),
+                ctypes.POINTER(ctypes.c_int64),
+                ctypes.POINTER(ctypes.c_int8),
+                ctypes.POINTER(NativeAdaptiveStats),
+                ctypes.POINTER(ctypes.c_char),
+                ctypes.c_size_t,
+            ]
+            library.fast_math_adaptive_area_exact_i64.restype = ctypes.c_int
         library.fast_math_sparse_rank_mod_u32.argtypes = [
             ctypes.POINTER(ctypes.c_uint64),
             ctypes.POINTER(ctypes.c_uint32),
@@ -773,6 +815,66 @@ def _uint64_pointer(array: np.ndarray) -> ctypes.POINTER(ctypes.c_uint64):
 
 def _uint32_pointer(array: np.ndarray) -> ctypes.POINTER(ctypes.c_uint32):
     return array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32))
+
+
+def _optional_pointer(array, pointer_type):
+    if array is None:
+        return ctypes.POINTER(pointer_type)()
+    return array.ctypes.data_as(ctypes.POINTER(pointer_type))
+
+
+def adaptive_area_native(
+    tables: np.ndarray,
+    coordinate_count: int,
+    *,
+    zero_tolerance: float = 0.0,
+    threads: int = 0,
+    variances: np.ndarray | None = None,
+    areas_by_restriction: np.ndarray | None = None,
+    policies: np.ndarray | None = None,
+    exact: bool = False,
+) -> tuple[np.ndarray, np.ndarray, NativeAdaptiveStats]:
+    library = load_library()
+    symbol = (
+        "fast_math_adaptive_area_exact_i64"
+        if exact
+        else "fast_math_adaptive_area_f64"
+    )
+    if not hasattr(library, symbol):
+        raise NativeUnavailable(
+            "fast-math was built without adaptive restriction-lattice kernels"
+        )
+    target_count = int(tables.shape[0])
+    value_type = ctypes.c_int64 if exact else ctypes.c_double
+    areas = np.empty(target_count, dtype=np.int64 if exact else np.float64)
+    first_coordinates = np.empty(target_count, dtype=np.int32)
+    stats = NativeAdaptiveStats()
+    error = ctypes.create_string_buffer(1024)
+    arguments = [
+        tables.ctypes.data_as(ctypes.POINTER(value_type)),
+        target_count,
+        int(coordinate_count),
+    ]
+    if not exact:
+        arguments.append(ctypes.c_double(zero_tolerance))
+    arguments.extend(
+        [
+            int(threads),
+            areas.ctypes.data_as(ctypes.POINTER(value_type)),
+            first_coordinates.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)),
+            _optional_pointer(variances, value_type),
+            _optional_pointer(areas_by_restriction, value_type),
+            _optional_pointer(policies, ctypes.c_int8),
+            ctypes.byref(stats),
+            error,
+            len(error),
+        ]
+    )
+    status = getattr(library, symbol)(*arguments)
+    if status != 0:
+        message = error.value.decode("utf-8", errors="replace")
+        raise RuntimeError(f"fast-math native error {status}: {message}")
+    return areas, first_coordinates, stats
 
 
 def sparse_rank_mod_u32_native(

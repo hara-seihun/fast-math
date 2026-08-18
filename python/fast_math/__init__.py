@@ -113,6 +113,17 @@ from .sparse import (
     sparse_rank_mod_u32_batch,
 )
 from .union import union_closed_family_masks
+from .adaptive import (
+    AdaptiveAreaBatch,
+    AdaptiveBackend,
+    ExactAdaptiveAreaBatch,
+    adaptive_areas,
+    exact_adaptive_areas,
+    quadratic_target_tables,
+    restriction_assignment,
+    restriction_code,
+    restriction_count,
+)
 from .packing import (
     PackingBackend,
     SquareCoverBatch,
@@ -306,6 +317,15 @@ __all__ = [
     "truncated_inverse",
     "undirected_csr",
     "union_closed_family_masks",
+    "AdaptiveAreaBatch",
+    "AdaptiveBackend",
+    "ExactAdaptiveAreaBatch",
+    "adaptive_areas",
+    "exact_adaptive_areas",
+    "quadratic_target_tables",
+    "restriction_assignment",
+    "restriction_code",
+    "restriction_count",
     "CIBackend",
     "CanonicalCayleyBatch",
     "CayleyGraphBatch",

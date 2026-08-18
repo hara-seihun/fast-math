@@ -97,6 +97,14 @@ struct fast_math_union_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_adaptive_stats {
+  std::uint64_t target_count;
+  std::uint64_t restriction_count;
+  std::uint64_t coordinate_count;
+  std::uint64_t worker_count;
+  double elapsed_seconds;
+};
+
 struct fast_math_modular_stats {
   std::uint64_t batch_count;
   std::uint64_t item_count;
@@ -710,6 +718,35 @@ FAST_MATH_API int fast_math_union_closed_family_masks_u64(
     std::uint32_t ground_size,
     std::uint8_t* closed,
     fast_math_union_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_adaptive_area_f64(
+    const double* tables,
+    std::size_t target_count,
+    std::uint32_t coordinate_count,
+    double zero_tolerance,
+    std::uint32_t thread_count,
+    double* areas,
+    std::int32_t* first_coordinates,
+    double* variances,
+    double* areas_by_restriction,
+    std::int8_t* policies,
+    fast_math_adaptive_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_adaptive_area_exact_i64(
+    const std::int64_t* tables,
+    std::size_t target_count,
+    std::uint32_t coordinate_count,
+    std::uint32_t thread_count,
+    std::int64_t* areas,
+    std::int32_t* first_coordinates,
+    std::int64_t* variances,
+    std::int64_t* areas_by_restriction,
+    std::int8_t* policies,
+    fast_math_adaptive_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 

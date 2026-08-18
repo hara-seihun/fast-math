@@ -4,7 +4,7 @@ export PKG_CONFIG_PATH := $(SYSTEM_PKG_CONFIG_PATH)$(if $(PKG_CONFIG_PATH),:$(PK
 COMPUTE := tools/run-compute.sh
 LIBRARY = $(shell find build -maxdepth 3 -type f \( -name 'libfast_math.dylib' -o -name 'libfast_math.so' -o -name 'fast_math.dll' \) 2>/dev/null | head -1)
 
-.PHONY: configure build hip hip-test hip-benchmark packing mask-lut subset-actions modular-batches modular-linear cnf-verification test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci derivative-rank6 ci-weight-orbits union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
+.PHONY: configure build hip hip-test hip-benchmark packing mask-lut subset-actions modular-batches modular-linear cnf-verification adaptive-area test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci derivative-rank6 ci-weight-orbits union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
 
 configure:
 	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -82,6 +82,9 @@ ci-weight-orbits: build
 
 union: build
 	$(COMPUTE) --slots 1 --memory-mb 2048 --timeout-seconds 1800 --label fast-math-union -- env FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) ../problems/union-closed/scratch/minimal-counterexample--fast-math-packed-union-closure-audit/benchmark.py --repeats 11 --output benchmarks/results/union-closure-routes-2026-07-28.json
+
+adaptive-area: build
+	$(COMPUTE) --slots 8 --memory-mb 4096 --timeout-seconds 900 --label fast-math-adaptive-area -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_adaptive_area.py --threads 8 --output benchmarks/results/adaptive-area-local.json
 
 union-closure: build
 	$(COMPUTE) --slots 1 --memory-mb 2048 --timeout-seconds 1800 --label fast-math-union-closure -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_union_closure.py --repeats 11 --output benchmarks/results/union-closure-native-2026-07-28.json
