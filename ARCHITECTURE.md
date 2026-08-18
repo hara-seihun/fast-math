@@ -63,7 +63,7 @@ These are broadly reusable independent of a research topic:
 - packed permutations and finite permutation groups;
 - packed subset actions and orbit partitions;
 - dense and CSR graph batches, canonical labeling adapters, and graph profiles;
-- exact sparse finite-field linear algebra;
+- exact sparse finite-field rank and retained dense finite-field systems;
 - deterministic reductions and fixed-width digests;
 - retained affine and transform plans;
 - ordered rigorous map/reduce.
@@ -132,6 +132,7 @@ higher-precision validation.
 | --- | --- | --- |
 | Packed subset permutation and canonical-minimum tests | Shipped on CPU and HIP | Retained exact byte-lookup plans, compact outputs, deterministic parity, and many CI consumers |
 | Prime-field polynomial values/derivatives and small dense determinants | Shipped on CPU and HIP | Regular exact uint32 arithmetic, retained coefficients/workspaces, compact outputs, and SageMath/FLINT parity |
+| Fixed-matrix prime-field solve, RREF, and nullspaces | Shipped on CPU and HIP | One canonical elimination produces reusable solution and obstruction operators; every answer carries a solution or left-null inconsistency witness |
 | Packed CNF assignment verification | Shipped on CPU and HIP | Retained clauses, independent candidate certificates, compact failure witnesses, and sampled dispatch for early rejection |
 | Batched relation histograms and selected WL refinement stages | Promising | Dense repeated exact counts; requires deterministic color compaction and a real route benchmark |
 | Batched graph invariants and dense incidence predicates | Promising at large batch sizes | Regular work and compact reductions; CPU remains preferable for small batches |
@@ -162,7 +163,10 @@ Completed:
 5. exact native and HIP packed-subset action kernels shipped with deterministic
    parity tests and representative benchmarks;
 6. HIP architecture selection changed from a host constant to runtime hardware
-   discovery at build time.
+   discovery at build time;
+7. retained dense modular systems now expose canonical RREF, row transforms,
+   both nullspaces, repeated solves, and exact inconsistency certificates on
+   native CPU and HIP.
 
 Next work should implement existing one-shot finite-group and graph functions in
 terms of the retained plans where profiling shows repeated validation or

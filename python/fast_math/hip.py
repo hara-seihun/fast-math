@@ -158,6 +158,31 @@ def _library() -> ctypes.CDLL:
                     ctypes.POINTER(ctypes.c_uint32),
                 ]
                 library.fast_math_hip_determinants.restype = ctypes.c_int
+            if hasattr(library, "fast_math_hip_linear_system_create"):
+                library.fast_math_hip_linear_system_create.argtypes = [
+                    ctypes.POINTER(ctypes.c_uint32),
+                    ctypes.POINTER(ctypes.c_uint32),
+                    ctypes.POINTER(ctypes.c_uint32),
+                    ctypes.c_size_t,
+                    ctypes.c_size_t,
+                    ctypes.c_size_t,
+                    ctypes.c_size_t,
+                    ctypes.c_uint32,
+                    ctypes.POINTER(ctypes.c_void_p),
+                ]
+                library.fast_math_hip_linear_system_create.restype = ctypes.c_int
+                library.fast_math_hip_linear_system_destroy.argtypes = [
+                    ctypes.c_void_p
+                ]
+                library.fast_math_hip_linear_system_destroy.restype = ctypes.c_int
+                library.fast_math_hip_linear_system_solve.argtypes = [
+                    ctypes.c_void_p,
+                    ctypes.POINTER(ctypes.c_uint32),
+                    ctypes.c_size_t,
+                    ctypes.POINTER(ctypes.c_uint32),
+                    ctypes.POINTER(ctypes.c_int64),
+                ]
+                library.fast_math_hip_linear_system_solve.restype = ctypes.c_int
             if hasattr(library, "fast_math_hip_subset_action_create"):
                 library.fast_math_hip_subset_action_create.argtypes = [
                     ctypes.POINTER(ctypes.c_uint32),
@@ -209,6 +234,13 @@ def hip_cnf_available() -> bool:
 def hip_modular_available() -> bool:
     try:
         return hasattr(_library(), "fast_math_hip_polynomial_create")
+    except HipUnavailable:
+        return False
+
+
+def hip_modular_linear_available() -> bool:
+    try:
+        return hasattr(_library(), "fast_math_hip_linear_system_create")
     except HipUnavailable:
         return False
 
@@ -524,6 +556,130 @@ def _subset_masks(values: ArrayLike, degree: int) -> NDArray[np.uint64]:
     if degree < 64 and np.any(result >> np.uint64(degree)):
         raise ValueError("mask contains an out-of-range bit")
     return result
+
+
+class ModularLinearSystemHipPlan:
+    """Persistent exact HIP operators for fixed-matrix solve batches."""
+
+    backend = "hip"
+
+    def __init__(
+        self,
+        solution_operator: ArrayLike,
+        pivot_columns: ArrayLike,
+        left_nullspace: ArrayLike,
+        *,
+        prime: int,
+    ) -> None:
+        self.prime = prime_u32(prime)
+        operator = field_array_u32(
+            solution_operator, self.prime, dimensions=2, own=True
+        )
+        pivots_raw = np.asarray(pivot_columns)
+        if pivots_raw.ndim != 1 or not np.issubdtype(
+            pivots_raw.dtype, np.integer
+        ):
+            raise ValueError("pivot columns must be one-dimensional integers")
+        if np.issubdtype(pivots_raw.dtype, np.signedinteger) and np.any(
+            pivots_raw < 0
+        ):
+            raise ValueError("pivot columns must be nonnegative")
+        pivots = np.ascontiguousarray(pivots_raw, dtype=np.uint32)
+        obstructions = field_array_u32(
+            left_nullspace, self.prime, dimensions=2, own=True
+        )
+        if operator.shape[0] == 0 or operator.shape[1] == 0:
+            raise ValueError("solution operator must have nonzero shape")
+        if obstructions.shape[1] != operator.shape[1]:
+            raise ValueError("left nullspace and solution operator row mismatch")
+        if (
+            len(pivots) + len(obstructions) != operator.shape[1]
+            or (len(pivots) and np.any(pivots >= operator.shape[0]))
+            or (len(pivots) > 1 and np.any(pivots[1:] <= pivots[:-1]))
+        ):
+            raise ValueError("pivot columns do not describe the solution operator")
+        library = _library()
+        if not hasattr(library, "fast_math_hip_linear_system_create"):
+            raise HipUnavailable("HIP modular linear-system support is not built")
+        handle = ctypes.c_void_p()
+        left_pointer = (
+            _pointer(obstructions, ctypes.c_uint32)
+            if obstructions.size
+            else ctypes.POINTER(ctypes.c_uint32)()
+        )
+        _check(
+            library.fast_math_hip_linear_system_create(
+                _pointer(operator, ctypes.c_uint32),
+                _pointer(pivots, ctypes.c_uint32),
+                left_pointer,
+                operator.shape[1],
+                operator.shape[0],
+                len(pivots),
+                len(obstructions),
+                self.prime,
+                ctypes.byref(handle),
+            ),
+            "modular linear-system plan creation",
+        )
+        if not handle.value:
+            raise RuntimeError(
+                "HIP modular linear-system plan returned a null handle"
+            )
+        self._library = library
+        self._handle = handle
+        self._solution_operator = operator
+        self._pivot_columns = pivots
+        self._left_nullspace = obstructions
+
+    @property
+    def row_count(self) -> int:
+        return self._solution_operator.shape[1]
+
+    @property
+    def column_count(self) -> int:
+        return self._solution_operator.shape[0]
+
+    def solve(
+        self,
+        right_hand_sides: ArrayLike,
+    ) -> tuple[NDArray[np.uint32], NDArray[np.int64], float]:
+        if not self._handle.value:
+            raise RuntimeError("HIP modular linear-system plan is closed")
+        prepared = field_array_u32(
+            right_hand_sides, self.prime, dimensions=2, own=False
+        )
+        if prepared.shape[1] != self.row_count:
+            raise ValueError("right-hand side width does not match the system")
+        solutions = np.empty(
+            (len(prepared), self.column_count), dtype=np.uint32
+        )
+        inconsistency_rows = np.empty(len(prepared), dtype=np.int64)
+        started = time.perf_counter()
+        _check(
+            self._library.fast_math_hip_linear_system_solve(
+                self._handle,
+                _pointer(prepared, ctypes.c_uint32),
+                len(prepared),
+                _pointer(solutions, ctypes.c_uint32),
+                _pointer(inconsistency_rows, ctypes.c_int64),
+            ),
+            "modular linear-system solve",
+        )
+        return solutions, inconsistency_rows, time.perf_counter() - started
+
+    def close(self) -> None:
+        handle, self._handle = self._handle, ctypes.c_void_p()
+        if handle.value:
+            _check(
+                self._library.fast_math_hip_linear_system_destroy(handle),
+                "modular linear-system plan destruction",
+            )
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
 
 class SubsetActionHipPlan:

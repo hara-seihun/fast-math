@@ -25,6 +25,10 @@ the exact modular/CNF certification-batch contracts.
   package as the native runtime owner.
 - `fast_math.modular`: retained exact uint32-prime polynomial value/derivative
   batches and dense determinant batches across reference, native CPU, and HIP.
+- `fast_math.modular_linear`: canonical RREF, rank, row transforms, right and
+  left nullspaces, inverses, and retained fixed-matrix solve batches. Native and
+  HIP backends return either an exact solution or a left-null inconsistency
+  witness for every right-hand side.
 - `fast_math.cnf`: retained DIMACS-style clause plans with exact packed
   assignment verification and first-unsatisfied-clause witnesses on CPU and HIP.
 - `fast_math.graphs`: graph6 encoding/decoding,
@@ -185,6 +189,7 @@ make hip-test
 make mask-lut
 make subset-actions
 make modular-batches
+make modular-linear
 make cnf-verification
 make filon
 ```
@@ -254,6 +259,8 @@ portable performance promises.
 | HIP packed-subset canonical images, 1,000,000 masks x 41 degree-41 permutations | 0.00681 s vs 0.05902 s native CPU | 8.66x end-to-end retained-plan call; exact image and flag parity | local `make subset-actions` receipt |
 | HIP modular polynomial values + derivatives, 128 x 65 coefficients / 1,024 points | 0.000426 s vs 0.3060 s SageMath | 718.9x end-to-end; native CPU is 59.6x SageMath; complete exact parity | local `make modular-batches` receipt |
 | Native modular determinants, 1,000 x 8 x 8 | 0.000341 s vs 0.00919 s python-flint / 0.0657 s SageMath | 26.9x / 192.5x end-to-end; complete exact parity | local `make modular-batches` receipt |
+| Retained modular solve, 8,192 changing RHS for one 64 x 64 matrix | 0.02363 s native vs 1.68547 s python-flint conversion + multiply | 71.3x NumPy-to-solution route; complete solution parity | local `make modular-linear` receipt |
+| Retained rank-40 modular system, 8,192 RHS for a 48 x 64 matrix | 0.01248 s HIP vs 0.11295 s native CPU | 9.05x; 4,096 solutions and 4,096 left-null inconsistency witnesses replayed in SageMath | local `make modular-linear` receipt |
 | HIP CNF valid-model checks, 100,000 assignments / 128 variables / 1,024 clauses | 0.00120 s vs 0.02857 s native CPU | 23.8x retained-plan call; exact acceptance and failure-index parity | local `make cnf-verification` receipt |
 | Native CNF valid-model checks, 1,000 assignments / same formula | 0.000464 s vs 0.4949 s executable Python reference | 1,066x end-to-end; exact inspected-literal and witness parity | local `make cnf-verification` receipt |
 | Fixed-weight subset orbits, degree 41 / weight 8 / 95,548,245 subsets | 2.262 s | 2,330,445 exact orbit representatives without domain materialization | `make ci-weight-orbits` receipt |

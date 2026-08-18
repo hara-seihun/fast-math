@@ -9,6 +9,7 @@ from .modular import (
     ModularPolynomialPlan,
     determinants_mod_u32,
 )
+from .modular_linear import ModularLinearSystemPlan, ModularSolveBatch
 from .runtime import BackendCapability, backend_capabilities
 from .actions import (
     ActionBackend,
@@ -82,6 +83,7 @@ from .hip import (
     hip_available,
     hip_cnf_available,
     hip_modular_available,
+    hip_modular_linear_available,
     hip_subset_actions_available,
 )
 from .large_graph import (
@@ -229,8 +231,10 @@ __all__ = [
     "ModularBackend",
     "ModularDeterminantBatch",
     "ModularDeterminantPlan",
+    "ModularLinearSystemPlan",
     "ModularPolynomialEvaluation",
     "ModularPolynomialPlan",
+    "ModularSolveBatch",
     "PairCounts",
     "PermutationActionPlan",
     "PackingBackend",
@@ -281,6 +285,7 @@ __all__ = [
     "hip_available",
     "hip_cnf_available",
     "hip_modular_available",
+    "hip_modular_linear_available",
     "hip_subset_actions_available",
     "native_version",
     "oriented_square_cover_words",

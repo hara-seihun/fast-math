@@ -16,6 +16,10 @@ class PrimeModulusU32 {
 #endif
   {}
 
+  std::uint32_t prime() const {
+    return prime_;
+  }
+
   std::uint32_t reduce(std::uint32_t value) const {
     return value < prime_ ? value : value % prime_;
   }

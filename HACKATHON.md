@@ -15,6 +15,7 @@ make finufft-prime-shell
 make metal
 make subset-actions
 make modular-batches
+make modular-linear
 make cnf-verification
 make union-closure
 ```
@@ -102,6 +103,12 @@ tools/run-compute.sh --slots 3 --memory-mb 2048 --timeout-seconds 900 \
   Horner recurrence and must match complete reference arrays.
 - Dense determinant APIs return determinants only. Do not infer an unreturned
   rank, inverse, or nonsingular-minor certificate.
+- Dense linear-system plans choose the first available pivot in each leftmost
+  pivot column. Right-nullspace vectors are rows. An inconsistent solve returns
+  the first retained left-nullspace row whose product with the right-hand side
+  is nonzero; inconsistent solution rows are zeroed.
+- A linear-system backend must preserve complete RREF, pivot, nullspace,
+  solution, consistency, and witness-index parity at hostile uint32 primes.
 - CNF literals use DIMACS signs and one-based variable numbers. Packed
   assignment bit zero is variable one.
 - CNF acceptance scans every clause. Rejection returns the first unsatisfied

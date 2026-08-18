@@ -30,6 +30,23 @@ struct HipDeterminantPlan {
   std::size_t matrix_capacity;
 };
 
+struct HipLinearSystemPlan {
+  std::uint32_t* solution_operator;
+  std::uint32_t* pivot_columns;
+  std::uint32_t* left_nullspace;
+  std::uint32_t* right_hand_sides;
+  std::uint32_t* solutions;
+  std::uint64_t* inconsistency_rows;
+  std::size_t row_count;
+  std::size_t column_count;
+  std::size_t rank;
+  std::size_t obstruction_count;
+  std::uint32_t prime;
+  std::uint64_t reciprocal;
+  std::uint64_t reduction_terms;
+  std::size_t batch_capacity;
+};
+
 int status(hipError_t error) {
   return error == hipSuccess ? 0 : static_cast<int>(error);
 }
@@ -132,6 +149,97 @@ __global__ void polynomial_evaluate_kernel(
   if constexpr (WithDerivative) derivatives[index] = derivative;
 }
 
+__device__ std::uint32_t dot_mod(
+    const std::uint32_t* left,
+    const std::uint32_t* right,
+    std::size_t count,
+    std::uint32_t prime,
+    std::uint64_t reciprocal,
+    std::uint64_t reduction_terms) {
+  if (reduction_terms == 1) {
+    std::uint32_t sum = 0;
+    for (std::size_t index = 0; index < count; ++index) {
+      sum = add_mod(
+          sum,
+          multiply_mod(left[index], right[index], prime, reciprocal),
+          prime);
+    }
+    return sum;
+  }
+  std::uint64_t sum = 0;
+  std::uint64_t terms = 0;
+  for (std::size_t index = 0; index < count; ++index) {
+    sum += static_cast<std::uint64_t>(left[index]) * right[index];
+    ++terms;
+    if (terms == reduction_terms) {
+      sum %= prime;
+      terms = 0;
+    }
+  }
+  return static_cast<std::uint32_t>(sum % prime);
+}
+
+__global__ void linear_obstruction_kernel(
+    const std::uint32_t* __restrict__ left_nullspace,
+    const std::uint32_t* __restrict__ right_hand_sides,
+    std::size_t batch_count,
+    std::size_t row_count,
+    std::size_t obstruction_count,
+    std::uint32_t prime,
+    std::uint64_t reciprocal,
+    std::uint64_t reduction_terms,
+    std::uint64_t* inconsistency_rows) {
+  const auto index =
+      static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const auto count = batch_count * obstruction_count;
+  if (index >= count) return;
+  const auto batch = index / obstruction_count;
+  const auto row = index % obstruction_count;
+  if (dot_mod(
+          left_nullspace + row * row_count,
+          right_hand_sides + batch * row_count,
+          row_count,
+          prime,
+          reciprocal,
+          reduction_terms) != 0) {
+    atomicMin(
+        reinterpret_cast<unsigned long long*>(inconsistency_rows + batch),
+        static_cast<unsigned long long>(row));
+  }
+}
+
+__global__ void linear_solution_kernel(
+    const std::uint32_t* __restrict__ solution_operator,
+    const std::uint32_t* __restrict__ pivot_columns,
+    const std::uint32_t* __restrict__ right_hand_sides,
+    const std::uint64_t* __restrict__ inconsistency_rows,
+    std::size_t batch_count,
+    std::size_t row_count,
+    std::size_t column_count,
+    std::size_t rank,
+    std::uint32_t prime,
+    std::uint64_t reciprocal,
+    std::uint64_t reduction_terms,
+    std::uint32_t* solutions) {
+  const auto index =
+      static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  const auto count = batch_count * rank;
+  if (index >= count) return;
+  const auto batch = index / rank;
+  const auto column = pivot_columns[index % rank];
+  if (inconsistency_rows[batch] !=
+      std::numeric_limits<std::uint64_t>::max()) {
+    return;
+  }
+  solutions[batch * column_count + column] = dot_mod(
+      solution_operator + column * row_count,
+      right_hand_sides + batch * row_count,
+      row_count,
+      prime,
+      reciprocal,
+      reduction_terms);
+}
+
 __global__ void determinant_kernel(
     std::uint32_t* matrices,
     std::size_t matrix_count,
@@ -218,6 +326,42 @@ void release_determinant_batches(HipDeterminantPlan* plan) {
   plan->matrices = nullptr;
   plan->determinants = nullptr;
   plan->matrix_capacity = 0;
+}
+
+void release_linear_batches(HipLinearSystemPlan* plan) {
+  (void)hipFree(plan->right_hand_sides);
+  (void)hipFree(plan->solutions);
+  (void)hipFree(plan->inconsistency_rows);
+  plan->right_hand_sides = nullptr;
+  plan->solutions = nullptr;
+  plan->inconsistency_rows = nullptr;
+  plan->batch_capacity = 0;
+}
+
+int reserve_linear(HipLinearSystemPlan* plan, std::size_t batch_count) {
+  if (batch_count <= plan->batch_capacity) return 0;
+  release_linear_batches(plan);
+  if (multiply_overflows(batch_count, plan->row_count) ||
+      multiply_overflows(batch_count, plan->column_count) ||
+      multiply_overflows(batch_count * plan->row_count, sizeof(std::uint32_t)) ||
+      multiply_overflows(batch_count * plan->column_count, sizeof(std::uint32_t)) ||
+      multiply_overflows(batch_count, sizeof(std::uint64_t))) {
+    return -2;
+  }
+  if (status(hipMalloc(
+          &plan->right_hand_sides,
+          batch_count * plan->row_count * sizeof(std::uint32_t))) != 0 ||
+      status(hipMalloc(
+          &plan->solutions,
+          batch_count * plan->column_count * sizeof(std::uint32_t))) != 0 ||
+      status(hipMalloc(
+          &plan->inconsistency_rows,
+          batch_count * sizeof(std::uint64_t))) != 0) {
+    release_linear_batches(plan);
+    return -2;
+  }
+  plan->batch_capacity = batch_count;
+  return 0;
 }
 
 int reserve_determinants(HipDeterminantPlan* plan, std::size_t matrix_count) {
@@ -392,5 +536,201 @@ extern "C" int fast_math_hip_determinants(
   if (result == 0) result = status(hipMemcpy(
       determinants, plan->determinants,
       matrix_count * sizeof(std::uint32_t), hipMemcpyDeviceToHost));
+  return result;
+}
+
+extern "C" int fast_math_hip_linear_system_create(
+    const std::uint32_t* solution_operator,
+    const std::uint32_t* pivot_columns,
+    const std::uint32_t* left_nullspace,
+    std::size_t row_count,
+    std::size_t column_count,
+    std::size_t rank,
+    std::size_t obstruction_count,
+    std::uint32_t prime,
+    void** result) {
+  try {
+    if (result != nullptr) *result = nullptr;
+    if (result == nullptr || solution_operator == nullptr || row_count == 0 ||
+        column_count == 0 || rank > row_count || rank > column_count ||
+        obstruction_count != row_count - rank || !is_prime(prime) ||
+        (rank != 0 && pivot_columns == nullptr) ||
+        multiply_overflows(column_count, row_count) ||
+        multiply_overflows(obstruction_count, row_count)) {
+      return -1;
+    }
+    for (std::size_t index = 0; index < rank; ++index) {
+      if (pivot_columns[index] >= column_count ||
+          (index != 0 && pivot_columns[index - 1] >= pivot_columns[index])) {
+        return -1;
+      }
+    }
+    const auto operator_count = column_count * row_count;
+    const auto obstruction_entries = obstruction_count * row_count;
+    if (multiply_overflows(operator_count, sizeof(std::uint32_t)) ||
+        multiply_overflows(rank, sizeof(std::uint32_t)) ||
+        multiply_overflows(obstruction_entries, sizeof(std::uint32_t))) {
+      return -2;
+    }
+    if (obstruction_entries != 0 && left_nullspace == nullptr) return -1;
+    for (std::size_t index = 0; index < operator_count; ++index) {
+      if (solution_operator[index] >= prime) return -1;
+    }
+    for (std::size_t index = 0; index < obstruction_entries; ++index) {
+      if (left_nullspace[index] >= prime) return -1;
+    }
+    const auto maximum = std::numeric_limits<std::uint64_t>::max();
+    const auto maximum_value = static_cast<std::uint64_t>(prime - 1);
+    const auto maximum_product = maximum_value * maximum_value;
+    const auto reduction_terms = std::max<std::uint64_t>(
+        1, (maximum - maximum_value) / maximum_product);
+    auto* plan = new (std::nothrow) HipLinearSystemPlan{
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        row_count,
+        column_count,
+        rank,
+        obstruction_count,
+        prime,
+        reciprocal_for(prime),
+        reduction_terms,
+        0};
+    if (plan == nullptr) return -2;
+    int code = status(hipMalloc(
+        &plan->solution_operator,
+        operator_count * sizeof(std::uint32_t)));
+    if (code == 0) code = status(hipMemcpy(
+        plan->solution_operator,
+        solution_operator,
+        operator_count * sizeof(std::uint32_t),
+        hipMemcpyHostToDevice));
+    if (code == 0 && rank != 0) code = status(hipMalloc(
+        &plan->pivot_columns, rank * sizeof(std::uint32_t)));
+    if (code == 0 && rank != 0) code = status(hipMemcpy(
+        plan->pivot_columns,
+        pivot_columns,
+        rank * sizeof(std::uint32_t),
+        hipMemcpyHostToDevice));
+    if (code == 0 && obstruction_entries != 0) code = status(hipMalloc(
+        &plan->left_nullspace,
+        obstruction_entries * sizeof(std::uint32_t)));
+    if (code == 0 && obstruction_entries != 0) code = status(hipMemcpy(
+        plan->left_nullspace,
+        left_nullspace,
+        obstruction_entries * sizeof(std::uint32_t),
+        hipMemcpyHostToDevice));
+    if (code != 0) {
+      (void)hipFree(plan->solution_operator);
+      (void)hipFree(plan->pivot_columns);
+      (void)hipFree(plan->left_nullspace);
+      delete plan;
+      return code;
+    }
+    *result = plan;
+    return 0;
+  } catch (...) {
+    return -2;
+  }
+}
+
+extern "C" int fast_math_hip_linear_system_destroy(void* opaque) {
+  auto* plan = static_cast<HipLinearSystemPlan*>(opaque);
+  if (plan == nullptr) return 0;
+  release_linear_batches(plan);
+  int result = status(hipFree(plan->solution_operator));
+  const auto pivot_result = status(hipFree(plan->pivot_columns));
+  const auto left_result = status(hipFree(plan->left_nullspace));
+  if (result == 0) result = pivot_result;
+  if (result == 0) result = left_result;
+  delete plan;
+  return result;
+}
+
+extern "C" int fast_math_hip_linear_system_solve(
+    void* opaque,
+    const std::uint32_t* right_hand_sides,
+    std::size_t batch_count,
+    std::uint32_t* solutions,
+    std::int64_t* inconsistency_rows) {
+  auto* plan = static_cast<HipLinearSystemPlan*>(opaque);
+  if (plan == nullptr || (batch_count != 0 &&
+      (right_hand_sides == nullptr || solutions == nullptr ||
+       inconsistency_rows == nullptr)) ||
+      multiply_overflows(batch_count, plan->row_count) ||
+      multiply_overflows(batch_count, plan->column_count)) {
+    return -1;
+  }
+  if (batch_count == 0) return 0;
+  const auto input_count = batch_count * plan->row_count;
+  for (std::size_t index = 0; index < input_count; ++index) {
+    if (right_hand_sides[index] >= plan->prime) return -1;
+  }
+  int result = reserve_linear(plan, batch_count);
+  if (result == 0) result = status(hipMemcpy(
+      plan->right_hand_sides,
+      right_hand_sides,
+      input_count * sizeof(std::uint32_t),
+      hipMemcpyHostToDevice));
+  if (result == 0) result = status(hipMemset(
+      plan->inconsistency_rows,
+      0xff,
+      batch_count * sizeof(std::uint64_t)));
+  if (result == 0) result = status(hipMemset(
+      plan->solutions,
+      0,
+      batch_count * plan->column_count * sizeof(std::uint32_t)));
+  constexpr std::size_t threads = 256;
+  if (result == 0 && plan->obstruction_count != 0) {
+    const auto count = batch_count * plan->obstruction_count;
+    const auto blocks = (count + threads - 1) / threads;
+    hipLaunchKernelGGL(
+        linear_obstruction_kernel,
+        dim3(blocks), dim3(threads), 0, 0,
+        plan->left_nullspace,
+        plan->right_hand_sides,
+        batch_count,
+        plan->row_count,
+        plan->obstruction_count,
+        plan->prime,
+        plan->reciprocal,
+        plan->reduction_terms,
+        plan->inconsistency_rows);
+    result = status(hipGetLastError());
+  }
+  if (result == 0 && plan->rank != 0) {
+    const auto count = batch_count * plan->rank;
+    const auto blocks = (count + threads - 1) / threads;
+    hipLaunchKernelGGL(
+        linear_solution_kernel,
+        dim3(blocks), dim3(threads), 0, 0,
+        plan->solution_operator,
+        plan->pivot_columns,
+        plan->right_hand_sides,
+        plan->inconsistency_rows,
+        batch_count,
+        plan->row_count,
+        plan->column_count,
+        plan->rank,
+        plan->prime,
+        plan->reciprocal,
+        plan->reduction_terms,
+        plan->solutions);
+    result = status(hipGetLastError());
+  }
+  if (result == 0) result = status(hipDeviceSynchronize());
+  if (result == 0) result = status(hipMemcpy(
+      solutions,
+      plan->solutions,
+      batch_count * plan->column_count * sizeof(std::uint32_t),
+      hipMemcpyDeviceToHost));
+  if (result == 0) result = status(hipMemcpy(
+      inconsistency_rows,
+      plan->inconsistency_rows,
+      batch_count * sizeof(std::uint64_t),
+      hipMemcpyDeviceToHost));
   return result;
 }

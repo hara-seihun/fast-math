@@ -4,7 +4,7 @@ export PKG_CONFIG_PATH := $(SYSTEM_PKG_CONFIG_PATH)$(if $(PKG_CONFIG_PATH),:$(PK
 COMPUTE := tools/run-compute.sh
 LIBRARY = $(shell find build -maxdepth 3 -type f \( -name 'libfast_math.dylib' -o -name 'libfast_math.so' -o -name 'fast_math.dll' \) 2>/dev/null | head -1)
 
-.PHONY: configure build hip hip-test hip-benchmark packing mask-lut subset-actions modular-batches cnf-verification test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci derivative-rank6 ci-weight-orbits union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
+.PHONY: configure build hip hip-test hip-benchmark packing mask-lut subset-actions modular-batches modular-linear cnf-verification test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci derivative-rank6 ci-weight-orbits union union-closure union-closure-routes digests sparse-rank sparse-rank-batch sparse-coloops arb finufft finufft-cells finufft-canopy finufft-prime-shell metal filon clean
 
 configure:
 	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -16,7 +16,7 @@ hip:
 	$(COMPUTE) --slots 1 --memory-mb 2048 --timeout-seconds 900 --label fast-math-hip-build -- tools/build-hip.sh
 
 hip-test: build hip
-	$(COMPUTE) --slots 4 --memory-mb 4096 --timeout-seconds 900 --label fast-math-hip-tests -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) -m pytest -q tests/test_hip.py tests/test_actions.py tests/test_modular.py tests/test_cnf.py
+	$(COMPUTE) --slots 4 --memory-mb 4096 --timeout-seconds 900 --label fast-math-hip-tests -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) -m pytest -q tests/test_hip.py tests/test_actions.py tests/test_modular.py tests/test_modular_linear.py tests/test_cnf.py
 
 hip-benchmark: hip
 	$(COMPUTE) --slots 1 --memory-mb 4096 --timeout-seconds 900 --label fast-math-hip-benchmark -- env PYTHONPATH=python FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) benchmarks/benchmark_hip_affine.py --output benchmarks/results/hip-affine-local.json
@@ -32,6 +32,9 @@ subset-actions: build hip
 
 modular-batches: build hip
 	$(COMPUTE) --slots 8 --memory-mb 4096 --timeout-seconds 900 --label fast-math-modular-batches -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) benchmarks/benchmark_modular_batches.py --output benchmarks/results/modular-batches-local.json
+
+modular-linear: build hip
+	$(COMPUTE) --slots 8 --memory-mb 4096 --timeout-seconds 900 --label fast-math-modular-linear -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) benchmarks/benchmark_modular_linear.py --output benchmarks/results/modular-linear-local.json
 
 cnf-verification: build hip
 	$(COMPUTE) --slots 8 --memory-mb 4096 --timeout-seconds 900 --label fast-math-cnf-verification -- env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) benchmarks/benchmark_cnf_verification.py --output benchmarks/results/cnf-verification-local.json

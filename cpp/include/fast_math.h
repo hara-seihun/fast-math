@@ -106,6 +106,17 @@ struct fast_math_modular_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_modular_linear_stats {
+  std::uint64_t row_count;
+  std::uint64_t column_count;
+  std::uint64_t rank;
+  std::uint64_t batch_count;
+  std::uint64_t operation_count;
+  std::uint32_t prime;
+  std::uint32_t thread_count;
+  double elapsed_seconds;
+};
+
 struct fast_math_cnf_stats {
   std::uint32_t variable_count;
   std::uint64_t clause_count;
@@ -172,6 +183,7 @@ struct fast_math_group_stats {
 };
 
 struct fast_math_cnf_plan;
+struct fast_math_modular_linear_system;
 struct fast_math_permutation_group;
 struct fast_math_subset_action;
 
@@ -747,6 +759,40 @@ FAST_MATH_API int fast_math_determinants_mod_u32(
     std::uint32_t thread_count,
     std::uint32_t* determinants,
     fast_math_modular_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_modular_linear_system_create_u32(
+    const std::uint32_t* matrix,
+    std::size_t row_count,
+    std::size_t column_count,
+    std::uint32_t prime,
+    fast_math_modular_linear_system** system,
+    fast_math_modular_linear_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API void fast_math_modular_linear_system_destroy(
+    fast_math_modular_linear_system* system);
+
+FAST_MATH_API int fast_math_modular_linear_system_export_u32(
+    const fast_math_modular_linear_system* system,
+    std::uint32_t* reduced_row_echelon,
+    std::uint32_t* pivot_columns,
+    std::uint32_t* solution_operator,
+    std::uint32_t* right_nullspace,
+    std::uint32_t* left_nullspace,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_modular_linear_system_solve_u32(
+    const fast_math_modular_linear_system* system,
+    const std::uint32_t* right_hand_sides,
+    std::size_t right_hand_side_count,
+    std::uint32_t thread_count,
+    std::uint32_t* solutions,
+    std::int64_t* inconsistency_rows,
+    fast_math_modular_linear_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 

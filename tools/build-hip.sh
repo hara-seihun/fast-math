@@ -34,12 +34,44 @@ ln -s "$(command -v lld)" "$tool_dir/lld"
 export PATH="$tool_dir:$PATH"
 export HIP_PLATFORM HIP_CLANG_PATH HIP_PATH ROCM_PATH HIP_LIB_PATH
 
-mkdir -p "$root/build"
-hipcc --offload-arch="$FAST_MATH_HIP_ARCH" \
-  -O3 -fPIC -shared \
-  "$root/cpp/src/hip_affine.hip" \
-  "$root/cpp/src/hip_cnf.hip" \
-  "$root/cpp/src/hip_modular.hip" \
-  "$root/cpp/src/hip_packing.hip" \
-  "$root/cpp/src/hip_subset_action.hip" \
-  -o "$root/build/libfast_math_hip.so"
+build_dir="$root/build/hip-objects"
+mkdir -p "$build_dir"
+sources=(
+  hip_affine.hip
+  hip_cnf.hip
+  hip_modular.hip
+  hip_packing.hip
+  hip_subset_action.hip
+)
+fingerprint=$(printf '%s\n' \
+  "$(readlink -f "$(command -v hipcc)")" \
+  "$FAST_MATH_HIP_ARCH" \
+  '-O3 -fPIC')
+if [[ ! -f "$build_dir/config" ]] ||
+   [[ "$(<"$build_dir/config")" != "$fingerprint" ]]; then
+  rm -f "$build_dir"/*.o
+  printf '%s' "$fingerprint" >"$build_dir/config"
+fi
+
+objects=()
+for source_name in "${sources[@]}"; do
+  source_path="$root/cpp/src/$source_name"
+  object_path="$build_dir/${source_name%.hip}.o"
+  objects+=("$object_path")
+  if [[ ! -f "$object_path" || "$source_path" -nt "$object_path" ]]; then
+    temporary="$object_path.tmp"
+    rm -f "$temporary"
+    hipcc --offload-arch="$FAST_MATH_HIP_ARCH" \
+      -O3 -fPIC -c "$source_path" -o "$temporary"
+    mv "$temporary" "$object_path"
+  fi
+done
+
+library="$root/build/libfast_math_hip.so"
+if [[ ! -f "$library" ]] ||
+   find "${objects[@]}" -newer "$library" -print -quit | grep -q .; then
+  temporary="$library.tmp"
+  hipcc --offload-arch="$FAST_MATH_HIP_ARCH" \
+    -shared "${objects[@]}" -o "$temporary"
+  mv "$temporary" "$library"
+fi

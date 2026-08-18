@@ -9,6 +9,7 @@ import fast_math.actions as fast_actions
 import fast_math.cnf as fast_cnf
 import fast_math.graphs as fast_graphs
 import fast_math.modular as fast_modular
+import fast_math.modular_linear as fast_modular_linear
 import fast_math.plans as fast_plans
 import fast_math.runtime as fast_runtime
 import lambda_fast
@@ -22,6 +23,7 @@ def test_public_exports_are_bound() -> None:
         fast_cnf,
         fast_graphs,
         fast_modular,
+        fast_modular_linear,
         fast_plans,
         fast_runtime,
     ):
@@ -43,13 +45,13 @@ def test_general_api_preserves_lambda_exports() -> None:
     assert fast_math.dirichlet_inverse is lambda_fast.dirichlet_inverse
     assert fast_math.fused_two_level is lambda_fast.fused_two_level
     assert fast_math.power_moments is lambda_fast.power_moments
-    assert fast_math.native_version() == "0.8.0"
+    assert fast_math.native_version() == "0.9.0"
 
 
 def test_old_and_new_native_abi_symbols_are_available() -> None:
     library = load_library()
-    assert library.fast_math_version().decode("ascii") == "0.8.0"
-    assert library.lambda_fast_version().decode("ascii") == "0.8.0"
+    assert library.fast_math_version().decode("ascii") == "0.9.0"
+    assert library.lambda_fast_version().decode("ascii") == "0.9.0"
     for symbol in (
         "lambda_fast_accumulate_f64",
         "lambda_fast_fused_two_level_f64",
@@ -67,6 +69,10 @@ def test_old_and_new_native_abi_symbols_are_available() -> None:
         "fast_math_cnf_evaluate_u64",
         "fast_math_polynomial_evaluate_mod_u32",
         "fast_math_determinants_mod_u32",
+        "fast_math_modular_linear_system_create_u32",
+        "fast_math_modular_linear_system_export_u32",
+        "fast_math_modular_linear_system_solve_u32",
+        "fast_math_modular_linear_system_destroy",
         "fast_math_subset_action_create_u32",
         "fast_math_subset_action_canonicalize_u64",
         "fast_math_subset_action_destroy",

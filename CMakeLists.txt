@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(fast_math VERSION 0.8.0 LANGUAGES C CXX)
+project(fast_math VERSION 0.9.0 LANGUAGES C CXX)
 
 option(
   FAST_MATH_NATIVE_ARCH
@@ -266,6 +266,7 @@ if(TARGET PkgConfig::FLINT)
       ${FAST_MATH_FLINT_LIBRARY}
   )
   target_compile_definitions(fast_math PUBLIC FAST_MATH_HAVE_ARB=1)
+  target_compile_definitions(fast_math PRIVATE FAST_MATH_HAVE_FLINT=1)
 
   if(BUILD_TESTING)
     add_executable(fast_math_arb_cache_test
