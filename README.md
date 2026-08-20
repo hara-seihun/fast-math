@@ -129,15 +129,22 @@ wheel-based virtual environment on NixOS; the system Python owns the patched
 native dependencies. Set `PYTHON=/path/to/python` explicitly when testing an
 independent environment.
 
-Research agents can invoke the deployed build without environment setup:
+Research agents invoke the built library through the `fast-math` launcher,
+which is on `PATH` and needs no environment setup:
 
 ```sh
-cd /home/kenan/projects-research
-./tools/fast-math -c 'import fast_math; print(fast_math.__file__)'
-./tools/fast-math path/to/research_script.py
+fast-math -c 'import fast_math; print(fast_math.__file__)'
+fast-math path/to/research_script.py
 ```
 
-The launcher supplies `PYTHONPATH` and the native library paths. Coverage includes
+The launcher supplies `PYTHONPATH` and the native library path, resolving the
+library from `build/` in this tree or `lib/` in a published one. `./deploy`
+publishes the package, the CPU library, and the launcher to `/srv/pi/fast-math`
+so the unprivileged orchestrator fleet user can run it too, then validates both
+users end to end with `smoke.py`. The HIP library is deliberately not published:
+it needs GPU device access the fleet user does not have.
+
+Test coverage includes
 exhaustive behavior over every labeled graph through order five, invariant
 parity over all 32,768 labeled order-six graphs, 64-vertex boundaries,
 arithmetic identities, invalid inputs, input immutability, graph and

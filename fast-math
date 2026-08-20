@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
+# Runs python3 with the fast-math package and its native library resolved.
+# Works from the development tree (library in build/) and from a published
+# tree (library in lib/), so one launcher serves both.
 set -euo pipefail
 
-root="$(unset CDPATH; cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+root="$(unset CDPATH; cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)"
 
 if [[ -z "${FAST_MATH_LIBRARY:-}" ]]; then
   for candidate in \
+    "$root/lib/libfast_math.so" \
     "$root/build/libfast_math.so" \
     "$root/build/libfast_math.dylib" \
     "$root/build/fast_math.dll"

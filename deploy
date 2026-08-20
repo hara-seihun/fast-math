@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Publishes fast-math to /srv/pi/fast-math, the world-readable artifact the
+# orchestrator fleet user runs from (0700 homes are unreadable across users),
+# and refreshes the `fast-math` launcher on both users' PATH. This directory
+# is the source of truth; the published tree is derived and disposable.
+#
+# Only the CPU library ships. libfast_math_hip.so needs GPU device access the
+# fleet user deliberately does not have.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+lib=build/libfast_math.so
+[[ -f $lib ]] || { echo "deploy: $lib is missing; run make test first" >&2; exit 1; }
+
+stale=$(find cpp python arb CMakeLists.txt -type f -newer "$lib" -not -path '*/__pycache__/*' -print -quit)
+if [[ -n $stale ]]; then
+  echo "deploy: $stale is newer than $lib; run make test first" >&2
+  exit 1
+fi
+
+dest=/srv/pi/fast-math
+install -d -m 755 "$dest" "$dest/lib"
+rsync -a --delete --exclude __pycache__ --chmod=D755,F644 python "$dest/"
+install -m 644 "$lib" "$dest/lib/libfast_math.so"
+ln -sfn libfast_math.so "$dest/lib/liblambda_fast.so"
+install -m 755 fast-math "$dest/fast-math"
+install -m 644 README.md ARCHITECTURE.md smoke.py "$dest/"
+
+ln -sfn "$PWD/fast-math" "$HOME/.local/bin/fast-math"
+sudo -u orchestrator ln -sfn "$dest/fast-math" /home/orchestrator/.local/bin/fast-math
+
+fast-math smoke.py
+sudo -u orchestrator --login fast-math "$dest/smoke.py"
+echo "fast-math deployed to $dest"
