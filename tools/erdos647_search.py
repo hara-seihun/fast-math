@@ -90,7 +90,7 @@ def main() -> None:
     parser.add_argument("--state", type=Path, required=True)
     parser.add_argument("--v-start", type=int, default=DEFAULT_V_START)
     parser.add_argument("--v-end", type=int, default=DEFAULT_V_END)
-    parser.add_argument("--slab", type=int, default=None, help="v per slab (default: wheel * 2^18)")
+    parser.add_argument("--slab", type=int, default=None, help="v per slab (default: wheel * 2^15)")
     parser.add_argument("--backend", default="hip", choices=["hip", "native", "reference"])
     parser.add_argument(
         "--deep-cap",
@@ -102,8 +102,13 @@ def main() -> None:
     arguments = parser.parse_args()
 
     gate = derive_shift_gate(MODULUS)
-    plan = ShiftGateScanPlan(gate)
-    slab = arguments.slab or plan.wheel * (1 << 18)
+    # Extended wheel and empirically optimal sieve depth: see TARGETS.md
+    # (3.4e12 v/s on gfx1151; wheel 2^7*17*19*23*29*31, Q past which
+    # Miller-Rabin on survivors is cheaper than further sieving).
+    plan = ShiftGateScanPlan(
+        gate, wheel_primes=(17, 19, 23, 29, 31), sieve_bound=2048
+    )
+    slab = arguments.slab or plan.wheel * (1 << 15)
     sieved = frozenset(f.shift for f in gate.forms)
 
     state = load_state(arguments.state, arguments.v_start, arguments.v_end, slab)

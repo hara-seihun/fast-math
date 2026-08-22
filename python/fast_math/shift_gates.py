@@ -245,7 +245,10 @@ def derive_shift_gate(modulus: int, *, jmax: int = 64) -> ShiftGate:
     return ShiftGate(
         modulus=modulus,
         jmax=jmax,
-        forms=tuple(forms),
+        # Ascending coefficient: scan backends test forms in list order, so
+        # the smallest values (cheapest primality tests, and u64 rather than
+        # u128 Montgomery at campaign scale) reject most candidates first.
+        forms=tuple(sorted(forms, key=lambda f: f.a)),
         lut_exponents=caps,
         alive=alive,
         max_alive_smooth=max_smooth,
@@ -325,45 +328,39 @@ class ShiftGateScanPlan:
 
         # Wheel: v mod (base * prod(wheel_primes)) restricted to classes that
         # survive the mod-base projection of the p=2 table and the per-prime
-        # form-residue kills.  base is the largest power of 2 whose classes
-        # are uniformly decided by the p=2 LUT projection.
+        # form-residue kills.  The base is the p=2 LUT modulus itself, so the
+        # whole 2-adic table folds into the wheel.
         p2_cap = gate.lut_exponents.get(2)
-        base = 1
-        if p2_cap is not None:
-            lut2 = gate.alive[2]
-            for k in range(p2_cap, 0, -1):
-                mod = 2**k
-                step = len(lut2) // mod
-                uniform = all(
-                    len({bool(x) for x in lut2[c::mod]}) == 1 for c in range(mod)
-                )
-                if uniform:
-                    base = mod
-                    break
-        # base classes alive per projection
-        base_alive = [
-            bool(gate.alive[2][c]) if 2 in gate.alive and base > 1 else True
-            for c in range(base)
-        ]
+        base = 2**p2_cap if p2_cap is not None else 1
+        base_classes = (
+            np.flatnonzero(gate.alive[2]).astype(np.uint64)
+            if base > 1
+            else np.zeros(1, dtype=np.uint64)
+        )
 
-        kills: dict[int, set[int]] = {}
+        # Iterated CRT: extend the class list one wheel prime at a time.
+        # Kept vectorized because the extended wheel reaches ~1e9 with ~1e7
+        # classes; enumerating the full wheel is not an option.
+        classes = base_classes
+        modulus = base
         for q in self._wheel_primes:
-            dead = set()
-            for form in gate.forms:
-                if form.a % q == 0:
-                    continue
-                dead.add((form.b * pow(form.a, -1, q)) % q)
-            kills[q] = dead
-
-        wheel = base * math.prod(self._wheel_primes)
-        classes = [
-            r
-            for r in range(wheel)
-            if (base == 1 or base_alive[r % base])
-            and all(r % q not in kills[q] for q in self._wheel_primes)
-        ]
-        self._wheel = wheel
-        self._classes = np.array(classes, dtype=np.uint64)
+            dead = {
+                int((form.b * pow(form.a, -1, q)) % q)
+                for form in gate.forms
+                if form.a % q != 0
+            }
+            alive = np.array(
+                [s for s in range(q) if s not in dead], dtype=np.uint64
+            )
+            inv_m = pow(modulus, -1, q)
+            # v = c + modulus * ((s - c) * inv_m mod q) hits v = c (mod
+            # modulus) and v = s (mod q).
+            offset = ((alive[None, :] + (q - classes[:, None] % q)) * inv_m) % q
+            classes = (classes[:, None] + modulus * offset).ravel()
+            modulus *= q
+        classes.sort()
+        self._wheel = int(modulus)
+        self._classes = classes
 
     @property
     def gate(self) -> ShiftGate:

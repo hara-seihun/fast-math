@@ -33,7 +33,9 @@ def _tau(x: int) -> int:
 
 def test_erdos_647_gate_shape() -> None:
     gate = derive_shift_gate(360360)
-    assert [f.shift for f in gate.forms] == [1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 18, 20, 24]
+    assert sorted(f.shift for f in gate.forms) == [1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 18, 20, 24]
+    # Ascending coefficient order: cheapest form values are tested first.
+    assert [f.a for f in gate.forms] == sorted(f.a for f in gate.forms)
     assert all(gate.modulus % f.a == 0 for f in gate.forms)
     assert gate.max_alive_smooth == 9
     # Wheel classes and tables kill most of v-space before any sieve work.
