@@ -157,3 +157,43 @@ def test_scan_rejects_ranges_too_low_for_exact_sieving(m4_plan) -> None:
 def test_plan_rejects_wheel_primes_dividing_modulus() -> None:
     with pytest.raises(ValueError, match="wheel primes"):
         ShiftGateScanPlan(derive_shift_gate(360360), wheel_primes=(13, 17, 19))
+
+
+def _forged_single_form_plan() -> ShiftGateScanPlan:
+    # Not a derivable gate: one dense form so survivors are plentiful at any
+    # chosen magnitude.  Contract-legal input to the scan backends.
+    from fast_math.shift_gates import ShiftGate, ShiftGateForm
+
+    gate = ShiftGate(
+        modulus=2,
+        jmax=1,
+        forms=(ShiftGateForm(shift=1, a=11, b=1),),
+        lut_exponents={2: 1},
+        alive={2: np.ones(2, dtype=np.bool_)},
+        max_alive_smooth=2,
+    )
+    return ShiftGateScanPlan(gate)
+
+
+@needs_native
+def test_full_width_u64_montgomery_regression() -> None:
+    # Regression: mont64_mul once wrapped its 128-bit accumulator for moduli
+    # above ~0.618 * 2^64, silently misjudging 64-bit primes as composite -
+    # false kills that emptied the high range of the first Erdos 647
+    # campaign.  This window puts thousands of survivors with coprime parts
+    # right in (0.618 * 2^64, 2^64) through the one-word Montgomery path.
+    plan = _forged_single_form_plan()
+    v_start, v_count = 17_000_000_000_000_000_000, 60_000
+    reference, stats = plan.scan_reference(v_start, v_count)
+    assert stats.survivors > 2_000
+    native, _ = plan.scan(v_start, v_count, backend="native")
+    np.testing.assert_array_equal(native, reference)
+
+
+@needs_hip
+def test_full_width_u64_montgomery_regression_hip() -> None:
+    plan = _forged_single_form_plan()
+    v_start, v_count = 17_000_000_000_000_000_000, 60_000
+    reference, _ = plan.scan_reference(v_start, v_count)
+    hip, _ = plan.scan(v_start, v_count, backend="hip")
+    np.testing.assert_array_equal(hip, reference)

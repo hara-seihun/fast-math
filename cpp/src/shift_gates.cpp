@@ -61,10 +61,11 @@ Mont64 mont64_create(u64 n) {
 
 u64 mont64_mul(const Mont64& m, u64 a, u64 b) {
   u128 t = u128(a) * b;
-  u64 low = u64(t) * m.ninv;
-  u128 s = t + u128(low) * m.n;
-  u64 result = u64(s >> 64);
-  return result >= m.n ? result - m.n : result;
+  u128 u = u128(u64(t) * m.ninv) * m.n;
+  // (t + u) is divisible by 2^64 and can span 129 bits when n > 2^64 * 0.618,
+  // so accumulate the high halves explicitly instead of adding in u128.
+  u128 sum = u128(u64(t >> 64)) + u64(u >> 64) + (u64(t) != 0 ? 1 : 0);
+  return u64(sum >= m.n ? sum - m.n : sum);
 }
 
 bool mr_prime_u64(u64 n) {
