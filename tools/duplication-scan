@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""Alpha-normalized NCD scan for kernels that should live in this library.
+
+Run it over the scratch trees where agents write one-off programs:
+
+    tools/duplication-scan '*.cpp' ~/work
+
+A cluster of near-identical programs is a kernel this library is missing; the
+candidate table in TARGETS.md was produced this way.
+
+Units are whole files (each is one single-purpose program). Normalization keeps
+control flow, operators, calls, and types while replacing identifiers and
+literals with placeholders, so two files that compute the same shape over
+different names collapse onto each other.
+"""
+import re
+import sys
+import zlib
+from itertools import combinations
+from pathlib import Path
+
+KEYWORDS = set("""
+alignas alignof and asm auto bool break case catch char class const consteval constexpr
+continue decltype default delete do double else enum explicit export extern false float for
+friend goto if inline int long mutable namespace new noexcept not nullptr operator or private
+protected public register return short signed sizeof static struct switch template this throw
+true try typedef typename union unsigned using virtual void volatile while
+int8_t int16_t int32_t int64_t uint8_t uint16_t uint32_t uint64_t size_t
+vector array map set unordered_map unordered_set string pair tuple sort push_back emplace_back
+begin end size cout cerr endl printf scanf memset memcpy min max abs swap
+""".split())
+
+COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
+STRING = re.compile(r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)\'')
+TOKEN = re.compile(r"[A-Za-z_]\w*|\d+\.?\d*|[^\sA-Za-z_\d]")
+
+
+def normalize(text):
+    text = COMMENT.sub(" ", text)
+    text = STRING.sub(' "S" ', text)
+    out = []
+    for token in TOKEN.findall(text):
+        if token[0].isdigit():
+            out.append("N")
+        elif token[0].isalpha() or token[0] == "_":
+            out.append(token if token in KEYWORDS else "V")
+        else:
+            out.append(token)
+    return " ".join(out)
+
+
+def shingles(normalized, k=5):
+    tokens = normalized.split()
+    return {hash(tuple(tokens[i : i + k])) for i in range(max(len(tokens) - k + 1, 1))}
+
+
+def ncd(a, b):
+    ca, cb = len(zlib.compress(a, 9)), len(zlib.compress(b, 9))
+    cab = len(zlib.compress(a + b, 9))
+    return (cab - min(ca, cb)) / max(ca, cb)
+
+
+def main(roots, patterns, jaccard_floor=0.15, ncd_ceiling=0.62):
+    units = []
+    for root in roots:
+        for pattern in patterns:
+            for path in Path(root).rglob(pattern):
+                try:
+                    text = path.read_text(errors="replace")
+                except OSError:
+                    continue
+                if len(text) < 400:
+                    continue
+                norm = normalize(text)
+                if len(norm) < 400:
+                    continue
+                units.append((path, norm, shingles(norm), norm.encode()))
+    print(f"{len(units)} units", file=sys.stderr)
+
+    pairs = []
+    for (pa, na, sa, ba), (pb, nb, sb, bb) in combinations(units, 2):
+        jaccard = len(sa & sb) / len(sa | sb)
+        if jaccard < jaccard_floor:
+            continue
+        distance = ncd(ba, bb)
+        if distance <= ncd_ceiling:
+            pairs.append((distance, jaccard, pa, pb))
+
+    pairs.sort(key=lambda row: row[0])
+    parent = {}
+
+    def find(x):
+        while parent.setdefault(x, x) != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for distance, _, pa, pb in pairs:
+        ra, rb = find(pa), find(pb)
+        if ra != rb:
+            parent[rb] = ra
+
+    clusters = {}
+    for path, *_ in units:
+        if path in parent:
+            clusters.setdefault(find(path), []).append(path)
+
+    for members in sorted(clusters.values(), key=len, reverse=True):
+        if len(members) < 3:
+            continue
+        print(f"\n=== {len(members)} files ===")
+        for member in sorted(members)[:40]:
+            print(f"  {member}")
+
+    print(f"\n{len(pairs)} close pairs, {sum(1 for c in clusters.values() if len(c) > 2)} clusters")
+
+
+if __name__ == "__main__":
+    main(sys.argv[2:], [sys.argv[1]])

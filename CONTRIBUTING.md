@@ -12,7 +12,9 @@ its contract is stated over mathematical data rather than one census, and when
 more than one route needs it. A script that answers one question belongs in the
 work that asked the question.
 
-If you wrote the same loop by hand twice, it is a kernel.
+If you wrote the same loop by hand twice, it is a kernel. `tools/duplication-scan
+'*.cpp' ~/work` says which loops a whole fleet wrote twice; `TARGETS.md` records
+what it found last.
 
 ## What a reviewable PR carries
 

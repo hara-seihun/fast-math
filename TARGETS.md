@@ -505,6 +505,9 @@ batch-first and make output allocation explicit.
 
 ### Recurring hand-written kernels
 
+`tools/duplication-scan` is what produced this table; rerun it over the current
+scratch trees rather than trusting these counts a month from now.
+
 An alpha-normalized NCD scan of the fleet's scratch trees on 2026-08-21 found
 190 hand-written C++ programs, none of which link this library, falling into ten
 structural families. The five below are the ones whose contract is mathematical
