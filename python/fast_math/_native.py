@@ -190,6 +190,16 @@ class NativeDigestStats(ctypes.Structure):
     ]
 
 
+class NativeEllipticStats(ctypes.Structure):
+    _fields_ = [
+        ("prime_count", ctypes.c_uint64),
+        ("parameter_count", ctypes.c_uint64),
+        ("candidate_count", ctypes.c_uint64),
+        ("truncated", ctypes.c_uint32),
+        ("elapsed_seconds", ctypes.c_double),
+    ]
+
+
 class NativeUnionStats(ctypes.Structure):
     _fields_ = [
         ("family_count", ctypes.c_uint64),
@@ -680,6 +690,51 @@ def load_library() -> ctypes.CDLL:
             ctypes.c_size_t,
         ]
         library.fast_math_digest_u64_rows_sha256.restype = ctypes.c_int
+        if hasattr(library, "fast_math_elliptic_mestre_ap_tables_i32"):
+            library.fast_math_elliptic_mestre_ap_tables_i32.argtypes = [
+                ctypes.POINTER(ctypes.c_int64),
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.c_size_t,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_int32),
+                ctypes.POINTER(NativeEllipticStats),
+                ctypes.POINTER(ctypes.c_char),
+                ctypes.c_size_t,
+            ]
+            library.fast_math_elliptic_mestre_ap_tables_i32.restype = ctypes.c_int
+            library.fast_math_elliptic_nagao_scores_f64.argtypes = [
+                ctypes.POINTER(ctypes.c_int32),
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.POINTER(ctypes.c_double),
+                ctypes.c_size_t,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.POINTER(ctypes.c_int64),
+                ctypes.POINTER(ctypes.c_int64),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_double),
+                ctypes.POINTER(NativeEllipticStats),
+                ctypes.POINTER(ctypes.c_char),
+                ctypes.c_size_t,
+            ]
+            library.fast_math_elliptic_nagao_scores_f64.restype = ctypes.c_int
+            library.fast_math_elliptic_quartic_sieve_i64.argtypes = [
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.c_size_t,
+                ctypes.c_int64,
+                ctypes.c_int64,
+                ctypes.c_int64,
+                ctypes.c_int64,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_int64),
+                ctypes.c_size_t,
+                ctypes.POINTER(NativeEllipticStats),
+                ctypes.POINTER(ctypes.c_char),
+                ctypes.c_size_t,
+            ]
+            library.fast_math_elliptic_quartic_sieve_i64.restype = ctypes.c_int
         if hasattr(library, "fast_math_union_closed_family_masks_u64"):
             library.fast_math_union_closed_family_masks_u64.argtypes = [
                 ctypes.POINTER(ctypes.c_uint64),
@@ -1081,6 +1136,113 @@ def digest_u64_rows_native(
         message = error.value.decode("utf-8", errors="replace")
         raise RuntimeError(f"fast-math native error {status}: {message}")
     return digests, stats
+
+
+def _require_elliptic(library):
+    if not hasattr(library, "fast_math_elliptic_mestre_ap_tables_i32"):
+        raise NativeUnavailable(
+            "fast-math was built without the elliptic-curve kernels"
+        )
+
+
+def _check(status: int, error: "ctypes.Array[ctypes.c_char]") -> None:
+    if status != 0:
+        message = error.value.decode("utf-8", errors="replace")
+        raise RuntimeError(f"fast-math native error {status}: {message}")
+
+
+def elliptic_mestre_ap_tables_native(
+    sextuple: NDArray[np.int64],
+    primes: NDArray[np.uint32],
+    offsets: NDArray[np.uint64],
+    *,
+    threads: int = 0,
+) -> tuple[NDArray[np.int32], NativeEllipticStats]:
+    library = load_library()
+    _require_elliptic(library)
+    tables = np.empty(int(offsets[-1]) if len(offsets) else 0, dtype=np.int32)
+    stats = NativeEllipticStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_elliptic_mestre_ap_tables_i32(
+        sextuple.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
+        primes.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        len(primes),
+        offsets.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        int(threads),
+        tables.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return tables, stats
+
+
+def elliptic_nagao_scores_native(
+    tables: NDArray[np.int32],
+    primes: NDArray[np.uint32],
+    weights: NDArray[np.float64],
+    offsets: NDArray[np.uint64],
+    numerators: NDArray[np.int64],
+    denominators: NDArray[np.int64],
+    *,
+    threads: int = 0,
+) -> tuple[NDArray[np.float64], NativeEllipticStats]:
+    library = load_library()
+    _require_elliptic(library)
+    scores = np.empty(len(numerators), dtype=np.float64)
+    stats = NativeEllipticStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_elliptic_nagao_scores_f64(
+        tables.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)),
+        primes.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        weights.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+        len(primes),
+        offsets.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        numerators.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
+        denominators.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
+        len(numerators),
+        int(threads),
+        scores.ctypes.data_as(ctypes.POINTER(ctypes.c_double)),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return scores, stats
+
+
+def elliptic_quartic_sieve_native(
+    coefficient_residues: NDArray[np.uint32],
+    primes: NDArray[np.uint32],
+    numerator_range: tuple[int, int],
+    denominator_range: tuple[int, int],
+    *,
+    capacity: int,
+    threads: int = 0,
+) -> tuple[NDArray[np.int64], NativeEllipticStats]:
+    library = load_library()
+    _require_elliptic(library)
+    candidates = np.empty((max(capacity, 1), 2), dtype=np.int64)
+    stats = NativeEllipticStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_elliptic_quartic_sieve_i64(
+        coefficient_residues.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        primes.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        len(primes),
+        int(numerator_range[0]),
+        int(numerator_range[1]),
+        int(denominator_range[0]),
+        int(denominator_range[1]),
+        int(threads),
+        candidates.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)),
+        int(capacity),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return candidates[: min(int(stats.candidate_count), capacity)], stats
 
 
 def union_closed_family_masks_native(

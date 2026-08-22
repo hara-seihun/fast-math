@@ -97,6 +97,14 @@ struct fast_math_union_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_elliptic_stats {
+  std::uint64_t prime_count;
+  std::uint64_t parameter_count;
+  std::uint64_t candidate_count;
+  std::uint32_t truncated;
+  double elapsed_seconds;
+};
+
 struct fast_math_adaptive_stats {
   std::uint64_t target_count;
   std::uint64_t restriction_count;
@@ -718,6 +726,47 @@ FAST_MATH_API int fast_math_union_closed_family_masks_u64(
     std::uint32_t ground_size,
     std::uint8_t* closed,
     fast_math_union_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_elliptic_mestre_ap_tables_i32(
+    const std::int64_t* sextuple,
+    const std::uint32_t* primes,
+    std::size_t prime_count,
+    const std::uint64_t* table_offsets,
+    std::uint32_t thread_count,
+    std::int32_t* tables,
+    fast_math_elliptic_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_elliptic_nagao_scores_f64(
+    const std::int32_t* tables,
+    const std::uint32_t* primes,
+    const double* weights,
+    std::size_t prime_count,
+    const std::uint64_t* table_offsets,
+    const std::int64_t* numerators,
+    const std::int64_t* denominators,
+    std::size_t parameter_count,
+    std::uint32_t thread_count,
+    double* scores,
+    fast_math_elliptic_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_elliptic_quartic_sieve_i64(
+    const std::uint32_t* coefficient_residues,
+    const std::uint32_t* primes,
+    std::size_t prime_count,
+    std::int64_t numerator_low,
+    std::int64_t numerator_high,
+    std::int64_t denominator_low,
+    std::int64_t denominator_high,
+    std::uint32_t thread_count,
+    std::int64_t* candidates,
+    std::size_t candidate_capacity,
+    fast_math_elliptic_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 

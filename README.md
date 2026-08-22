@@ -31,6 +31,10 @@ the exact modular/CNF certification-batch contracts.
   witness for every right-hand side.
 - `fast_math.cnf`: retained DIMACS-style clause plans with exact packed
   assignment verification and first-unsatisfied-clause witnesses on CPU and HIP.
+- `fast_math.elliptic`: exact Mestre-locus family construction over Q, retained
+  mod-p trace tables for one-parameter quartic families, batched Mestre-Nagao
+  scoring of rational fibres, and bit-sieved rational point search on quartic
+  models with exact confirmation.
 - `fast_math.graphs`: graph6 encoding/decoding,
   degree/edge/triangle/wedge/induced-P3 invariants, induced-subgraph class
   censuses, pair profiles, and clique or independent-set witnesses for graph
@@ -630,6 +634,57 @@ On the retained attachment matrices, four-row blocks remove 13,115 of 19,320
 order-16 columns in 0.072 seconds and 8,392 of 48,629 order-17 columns in
 0.122 seconds. Larger eight- and sixteen-row blocks expose no additional
 order-17 columns, so four rows remain the evidence-backed default.
+
+## Elliptic curve rank search contract
+
+The module exists to find elliptic curves of high Mordell-Weil rank relative to
+their size, which is a search over families rather than over single curves.
+
+`mestre_locus_sextuples` enumerates the integer sextuples that define those
+families. With the first power sum zero, fixing `a1..a4` turns the locus
+condition `12 p5 = 5 p2 p3` into a quadratic in `a5 a6`, so the enumeration
+solves the locus instead of sampling it. Entries bounded by 40 give 10,356
+primitive sextuples in 3 seconds, of which 201 are neither degenerate nor
+closed under negation. That filter matters: a sextuple closed under negation
+makes the quartic even in `x`, which pairs the twelve base points and halves
+the rank the family can carry.
+
+`mestre_quartic` builds one fibre exactly over Q. The returned quartic has
+integer coefficients, cleared by a square so the twelve base points still
+satisfy the returned equation, and `quartic_to_weierstrass` maps those points
+onto the Jacobian through a rational base point. Both record curves that the
+construction is known to produce are reproduced exactly by the tests, including
+the rank-19 curve with `log|D_min| = 156.3436`.
+
+`mestre_ap_tables` is the reason the search is cheap. The trace of Frobenius of
+a fibre depends only on the parameter modulo `p`, so one `O(p^2)` table per
+prime scores unboundedly many rational fibres afterwards by gather. Tabulating
+every prime below 2000 for one family takes 0.089 seconds against 6.96 seconds
+for the NumPy reference, and 1.7 seconds carries the bound to 6000. Scoring
+then runs at 1.77 million fibres per second over 301 primes, which is 534
+million gathers per second.
+
+Table entries are `-sum chi(r(x)) - chi(lead)` over `F_p`. That equals `a_p` at
+primes of good reduction and stays a bounded surrogate at the fibres that
+degenerate modulo `p`, which is what a Mestre-Nagao sum wants and costs no
+per-fibre discriminant test. Tests pin the values against an independent path,
+reducing the exact integer fibre rather than building it modulo `p`.
+
+`quartic_points` searches `y^2 = r(x)` for `x = u/w` in a box. Small primes
+bit-sieve the box down to pairs where the homogenized quartic is a quadratic
+residue at every sieve prime, and each survivor gets an exact integer square
+test, so coefficients of thirty digits cost nothing extra. Acceptance patterns
+are precomputed per prime and denominator class, which turns the per-denominator
+work into one AND pass and reaches 350 million pairs per second.
+
+The search never drops a point silently. The kernel reports the true candidate
+count even when the output buffer is too small, and the Python layer responds by
+halving the denominator span until every piece fits, so results are independent
+of `capacity`. A single denominator that cannot fit raises rather than
+truncating. This was a real defect, not a hypothetical one: silent truncation
+made a wider search return fewer points than a narrower one, and it now has
+regression tests for monotonicity in the box, in the sieve prime count, and
+under a deliberately cramped buffer.
 
 ## Production survey
 

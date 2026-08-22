@@ -112,6 +112,14 @@ from .sparse import (
     sparse_rank_mod_u32,
     sparse_rank_mod_u32_batch,
 )
+from .elliptic import (
+    MestreApTables,
+    QuarticFibre,
+    mestre_ap_tables,
+    mestre_locus_residual,
+    mestre_quartic,
+    quartic_points,
+)
 from .union import union_closed_family_masks
 from .adaptive import (
     AdaptiveAreaBatch,
@@ -316,6 +324,12 @@ __all__ = [
     "taylor_coefficients",
     "truncated_inverse",
     "undirected_csr",
+    "MestreApTables",
+    "QuarticFibre",
+    "mestre_ap_tables",
+    "mestre_locus_residual",
+    "mestre_quartic",
+    "quartic_points",
     "union_closed_family_masks",
     "AdaptiveAreaBatch",
     "AdaptiveBackend",
