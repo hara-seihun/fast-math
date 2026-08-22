@@ -1,68 +1,52 @@
-# Fast-Math Hackathon Guide
+# Contributing
 
-## Start here
+Every change lands through a pull request against `hara-seihun/fast-math`. An
+agent lane reviews the queue, merges what holds up, and republishes the machine
+copy; nothing else is needed from you after the PR exists.
 
-```sh
-uv sync --dev
-make test
-make portable-test
-make graphs
-make arb
-make finufft
-make finufft-cells
-make finufft-canopy
-make finufft-prime-shell
-make metal
-make subset-actions
-make modular-batches
-make modular-linear
-make cnf-verification
-make union-closure
-```
+## What belongs here
 
-`make test` builds the native library and runs the complete native/reference
-contract suite. When this repository is nested in the research laboratory,
-`tools/run-compute.sh` automatically uses its governed compute scheduler; in a
-standalone clone it executes the declared command directly. `make
-portable-test` repeats the suite without native ISA tuning, ForkUnion,
-CommonCrypto, or nauty. `make graphs` writes a local machine-readable benchmark
-record under `benchmarks/results/`.
+[`ARCHITECTURE.md`](ARCHITECTURE.md) owns the boundary and
+[`TARGETS.md`](TARGETS.md) owns the queue. In short: a kernel belongs here when
+its contract is stated over mathematical data rather than one census, and when
+more than one route needs it. A script that answers one question belongs in the
+work that asked the question.
 
-For a focused test:
+If you wrote the same loop by hand twice, it is a kernel.
 
-```sh
-tools/run-compute.sh --slots 5 --memory-mb 4096 --timeout-seconds 900 \
-  --label fast-math-graph-tests -- \
-  env PYTHONPATH=python \
-  FAST_MATH_LIBRARY=build/libfast_math.dylib \
-  .venv/bin/python -m pytest -q tests/test_graph64.py
-```
+## What a reviewable PR carries
 
-Use `tools/run-compute.sh` around any sustained benchmark or exhaustive run.
-Inside the research laboratory, declare the complete process tree's thread
-count, peak memory, and timeout.
+- The kernel, behind the existing C ABI and Python surface.
+- An executable reference backend. Native output is checked against it in
+  `tests/`, not asserted in prose.
+- A benchmark under `benchmarks/` with the numbers in the PR body: the shape,
+  the before, the after, the ratio, and the machine. `TARGETS.md` records
+  measurements this way and a merge appends to it.
+- `make test` green. `make portable-test` too when the change touches SIMD,
+  intrinsics, or anything conditioned on the build's architecture.
 
-For the retained high-order interval-scout FINUFFT shape:
+A measured negative result is worth a PR against `TARGETS.md` alone. The
+"Measured negative verdicts" section exists so nobody pays twice for the same
+disappointment.
+
+## From this machine
+
+Fleet agents already hold the GitHub identity and the toolchain:
 
 ```sh
-tools/run-compute.sh --target modal --slots 4 --memory-mb 12288 \
-  --timeout-seconds 3600 \
-  --workdir fast-math -- \
-  env PYTHONPATH=python python3 benchmarks/benchmark_finufft_cells.py \
-  --sources 690988 --targets 250000 --chunks 4 \
-  --transforms 27 --threads 4 --eps 1e-12 --repeats 3
+git clone https://github.com/hara-seihun/fast-math ~/work/fast-math
+cd ~/work/fast-math && make test
+git switch -c kernel-name && git commit -am "Add ..." && git push -u origin HEAD
+gh pr create --fill
 ```
 
-For focused sparse-rank work:
+`fast-math script.py` on `PATH` runs the published copy at
+`/srv/pi/fast-math`, which tracks `origin/main`. It is derived and disposable:
+the lane replaces it after every merge, so develop from your clone and treat a
+locally published tree as temporary.
 
-```sh
-tools/run-compute.sh --slots 1 --memory-mb 2048 --timeout-seconds 900 \
-  --label fast-math-sparse-tests -- \
-  env PYTHONPATH=python \
-  FAST_MATH_LIBRARY=build/libfast_math.dylib \
-  .venv/bin/python -m pytest -q \
-    tests/test_sparse_rank.py tests/test_sparse_coloops.py
-```
+Reviewing is the same repository: `gh pr diff`, read it, build it, and merge or
+say in a review what is missing.
 
 ## Optimization rule
 
@@ -91,9 +75,7 @@ cmake -S . -B build-verify \
   -DFAST_MATH_USE_COMMONCRYPTO=OFF \
   -DFAST_MATH_USE_NAUTY=OFF \
   -DFAST_MATH_VERIFY_MODULAR_ARITHMETIC=ON
-tools/run-compute.sh --slots 3 --memory-mb 2048 --timeout-seconds 900 \
-  --label fast-math-verify-build -- \
-  cmake --build build-verify --parallel 3
+cmake --build build-verify --parallel 4
 ```
 
 ## Exact modular and certificate conventions
@@ -196,45 +178,3 @@ tools/run-compute.sh --slots 3 --memory-mb 2048 --timeout-seconds 900 \
 - Batch before materializing Python tuples, and compare complete route outputs
   against the direct set verifier.
 
-## Good next targets
-
-- Migrate retained profile certificates to stacked counts and fixed digests
-  only when a current route attributes at least 5% of representative wall
-  time or material peak memory to profile serialization and hashing, while
-  preserving its legacy digest mapping. The measured triple-Gram scout made
-  zero profile-digest calls; its current successors are also ineligible.
-- Add induced filters over the large CSR graph representation only when a
-  current classifier supplies a representative route benchmark. The former
-  NetworkX factor-type merge target is stale; its source artifact is no longer
-  retained.
-- Extend packed Union primitives beyond the shipped closure check only when
-  two current routes measure material cost in products, empty intersections,
-  canonicalization, frequency vectors, or collision shadows.
-- Add a native union-family enumerator only with exact shard, symmetry, and
-  model-blocking contracts.
-- Add proof-producing CNF export and CaDiCaL/Kissat certificate replay.
-- Sparse exact incidence builders feeding fast modular rank and FLINT
-  integer/Smith-form backends.
-- Reopen black-box sparse rank only for a maintained deterministic
-  implementation and a captured matrix where structured elimination exceeds
-  memory or fails to finish. LinBox scalar Wiedemann loses on the retained
-  order-8, order-17, and order-18 fixtures, and its deprecated block-rank
-  example does not compile against the retained 1.7.0 headers.
-- SIMD or Metal reduction for the experimental exact-prefix Chebyshev-Filon
-  contraction. Beat the warmed full-cache NumPy baseline on a captured real
-  autocorrelation; do not claim success from storage reduction alone.
-- Migrate generated Arb source evaluators to the shipped ordered map/reduce and
-  fixed-offset cache assembly, requiring byte-identical cache files and exact
-  retained certificate equality.
-- Migrate the remaining retained FINUFFT scans to `Type1Plan1D`,
-  `Type3Plan1D`, `Type3FixedPlan1D`, or `Type3SignPairPlan1D`, with
-  complete-output parity and an end-to-end route benchmark. Fixed-strength
-  single-sign and paired-sign cell scans dispatch through retained type-3
-  plans on portable Linux but retain simple calls on Darwin; the fixed-R
-  product canopy and dyadic prime-shell type-1 scans are also migrated.
-- Add precision-tiered Metal kernels only when a real route needs more than
-  `complex64`; preserve the current NumPy parity benchmark and keep rigorous
-  validation outside the ranking gate.
-
-Choose a target only after recording a representative baseline. Keep new APIs
-batch-first and make output allocation explicit.

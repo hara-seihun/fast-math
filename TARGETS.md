@@ -459,3 +459,46 @@ Metal precision gate: MLX rejects float64 execution on the Apple GPU. Do not
 route the existing complex128 contract through ordinary complex64 Metal. A
 GPU promotion needs a validated precision-preserving Metal representation,
 paired CUDA parity, and the same captured-real-input benchmark.
+
+## Candidate targets
+
+- Migrate retained profile certificates to stacked counts and fixed digests
+  only when a current route attributes at least 5% of representative wall
+  time or material peak memory to profile serialization and hashing, while
+  preserving its legacy digest mapping. The measured triple-Gram scout made
+  zero profile-digest calls; its current successors are also ineligible.
+- Add induced filters over the large CSR graph representation only when a
+  current classifier supplies a representative route benchmark. The former
+  NetworkX factor-type merge target is stale; its source artifact is no longer
+  retained.
+- Extend packed Union primitives beyond the shipped closure check only when
+  two current routes measure material cost in products, empty intersections,
+  canonicalization, frequency vectors, or collision shadows.
+- Add a native union-family enumerator only with exact shard, symmetry, and
+  model-blocking contracts.
+- Add proof-producing CNF export and CaDiCaL/Kissat certificate replay.
+- Sparse exact incidence builders feeding fast modular rank and FLINT
+  integer/Smith-form backends.
+- Reopen black-box sparse rank only for a maintained deterministic
+  implementation and a captured matrix where structured elimination exceeds
+  memory or fails to finish. LinBox scalar Wiedemann loses on the retained
+  order-8, order-17, and order-18 fixtures, and its deprecated block-rank
+  example does not compile against the retained 1.7.0 headers.
+- SIMD or Metal reduction for the experimental exact-prefix Chebyshev-Filon
+  contraction. Beat the warmed full-cache NumPy baseline on a captured real
+  autocorrelation; do not claim success from storage reduction alone.
+- Migrate generated Arb source evaluators to the shipped ordered map/reduce and
+  fixed-offset cache assembly, requiring byte-identical cache files and exact
+  retained certificate equality.
+- Migrate the remaining retained FINUFFT scans to `Type1Plan1D`,
+  `Type3Plan1D`, `Type3FixedPlan1D`, or `Type3SignPairPlan1D`, with
+  complete-output parity and an end-to-end route benchmark. Fixed-strength
+  single-sign and paired-sign cell scans dispatch through retained type-3
+  plans on portable Linux but retain simple calls on Darwin; the fixed-R
+  product canopy and dyadic prime-shell type-1 scans are also migrated.
+- Add precision-tiered Metal kernels only when a real route needs more than
+  `complex64`; preserve the current NumPy parity benchmark and keep rigorous
+  validation outside the ranking gate.
+
+Choose a target only after recording a representative baseline. Keep new APIs
+batch-first and make output allocation explicit.

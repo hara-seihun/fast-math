@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Demand probe for the pi-orchestrator `fast-math-pr` lane: prints the number of
+# units of work waiting on this repository.
+#
+# One unit per open pull request nobody has reviewed at its current head, plus
+# one when the tree published at /srv/pi/fast-math is not origin/main. Zero
+# means the lane launches nothing, which is the normal state.
+#
+# A PR already reviewed at its head is not counted, so a change that is waiting
+# on its author does not keep the lane awake.
+set -euo pipefail
+
+repo_owner=hara-seihun
+repo_name=fast-math
+published=/srv/pi/fast-math/current/COMMIT
+
+read -r actionable head < <(
+  gh api graphql -f owner="$repo_owner" -f name="$repo_name" -f query='
+    query($owner: String!, $name: String!) {
+      repository(owner: $owner, name: $name) {
+        defaultBranchRef { target { oid } }
+        pullRequests(states: OPEN, first: 50) {
+          nodes {
+            isDraft
+            headRefOid
+            reviews(last: 20) { nodes { commit { oid } } }
+          }
+        }
+      }
+    }' --jq '
+      .data.repository as $r
+      | [ $r.pullRequests.nodes[]
+          | select(.isDraft | not)
+          | select([.reviews.nodes[].commit.oid] | index(.headRefOid) | not)
+        ] | length
+      | tostring + " " + $r.defaultBranchRef.target.oid'
+)
+
+drift=1
+[[ -r $published && $(cat "$published") == "$head" ]] && drift=0
+
+echo $((actionable + drift))

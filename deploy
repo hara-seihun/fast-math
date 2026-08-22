@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Publishes fast-math to /srv/pi/fast-math, the world-readable artifact the
+# Publishes this checkout to /srv/pi/fast-math, the world-readable artifact the
 # orchestrator fleet user runs from (0700 homes are unreadable across users),
-# and refreshes the `fast-math` launcher on both users' PATH. This directory
-# is the source of truth; the published tree is derived and disposable.
+# and refreshes the `fast-math` launcher on the invoking user's PATH.
+#
+# Either user can run this: kenan from ~/tools/fast-math, the fleet's PR lane
+# from its own clone after merging to main. Publishing is a version directory
+# plus an atomic `current` symlink flip, so a session that is mid-computation
+# keeps the tree it started with and no reader ever sees a half-written tree.
 #
 # Only the CPU library ships. libfast_math_hip.so needs GPU device access the
 # fleet user deliberately does not have.
@@ -18,17 +22,52 @@ if [[ -n $stale ]]; then
   exit 1
 fi
 
+commit=$(git rev-parse HEAD)
+[[ -z $(git status --porcelain) ]] || commit="$commit-dirty"
+
 dest=/srv/pi/fast-math
-install -d -m 755 "$dest" "$dest/lib"
-rsync -a --delete --exclude __pycache__ --chmod=D755,F644 python "$dest/"
-install -m 644 "$lib" "$dest/lib/libfast_math.so"
-ln -sfn libfast_math.so "$dest/lib/liblambda_fast.so"
-install -m 755 fast-math "$dest/fast-math"
-install -m 644 README.md ARCHITECTURE.md smoke.py "$dest/"
+version="$dest/$commit"
+mkdir -p "$dest"
 
-ln -sfn "$PWD/fast-math" "$HOME/.local/bin/fast-math"
-sudo -u orchestrator ln -sfn "$dest/fast-math" /home/orchestrator/.local/bin/fast-math
+stage="$dest/.stage.$$"
+trap 'rm -rf "$stage"' EXIT
+rm -rf "$stage"
+mkdir -p "$stage/lib"
+rsync -a --exclude __pycache__ python "$stage/"
+cp "$lib" "$stage/lib/libfast_math.so"
+ln -s libfast_math.so "$stage/lib/liblambda_fast.so"
+cp fast-math tools/pr-demand "$stage/"
+cp README.md ARCHITECTURE.md CONTRIBUTING.md smoke.py "$stage/"
+printf '%s\n' "$commit" > "$stage/COMMIT"
+chmod -R a+rX,ug+w "$stage"
+rm -rf "$version"
+mv "$stage" "$version"
 
-fast-math smoke.py
-sudo -u orchestrator --login fast-math "$dest/smoke.py"
-echo "fast-math deployed to $dest"
+# mv -T over a symlink is a rename, so readers resolve either the old version
+# or the new one and never an absent path.
+ln -sfn "$commit" "$dest/.current.$$"
+mv -T "$dest/.current.$$" "$dest/current"
+ln -sfn current/fast-math "$dest/fast-math"
+ln -sfn current/pr-demand "$dest/pr-demand"
+
+# Keep the version a long-running session may still be executing from, drop the
+# rest. -type d skips the `current` symlink, whose target must survive.
+find "$dest" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' |
+  sort -rn | tail -n +3 | cut -d' ' -f2- |
+  while read -r old; do rm -rf "$old"; done
+
+"$dest/fast-math" "$dest/current/smoke.py"
+
+install -d -m 755 "$HOME/.local/bin"
+if [[ $(id -un) == orchestrator ]]; then
+  ln -sfn "$dest/fast-math" "$HOME/.local/bin/fast-math"
+else
+  # A developer's own launcher stays on the checkout being edited, so a rebuilt
+  # library is usable before it is published.
+  ln -sfn "$PWD/fast-math" "$HOME/.local/bin/fast-math"
+  ./fast-math smoke.py
+  sudo -n -u orchestrator ln -sfn "$dest/fast-math" /home/orchestrator/.local/bin/fast-math
+  sudo -n -u orchestrator --login fast-math "$dest/current/smoke.py"
+fi
+
+echo "fast-math $commit published to $dest"

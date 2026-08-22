@@ -144,9 +144,13 @@ fast-math path/to/research_script.py
 The launcher supplies `PYTHONPATH` and the native library path, resolving the
 library from `build/` in this tree or `lib/` in a published one. `./deploy`
 publishes the package, the CPU library, and the launcher to `/srv/pi/fast-math`
-so the unprivileged orchestrator fleet user can run it too, then validates both
-users end to end with `smoke.py`. The HIP library is deliberately not published:
-it needs GPU device access the fleet user does not have.
+so the unprivileged orchestrator fleet user can run it too, then validates it
+end to end with `smoke.py`. Each publish is a directory named by its commit with
+an atomically flipped `current` symlink, so a running session keeps the tree it
+started with. The published tree tracks `origin/main`: the PR lane republishes
+after every merge, and a developer's own launcher stays on their checkout. The
+HIP library is deliberately not published: it needs GPU device access the fleet
+user does not have.
 
 Test coverage includes
 exhaustive behavior over every labeled graph through order five, invariant
@@ -170,8 +174,10 @@ parity checks against NumPy. The explicit ARM NEON kernels in the
 Taylor and moment paths retain scalar fallbacks, while Linux builds may use
 the host x86 instruction set through `-march=native`.
 
-See `HACKATHON.md` for the contributor workflow and optimization acceptance
-rules.
+Changes land through pull requests against `hara-seihun/fast-math`, which an
+agent lane reviews, merges, and republishes. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for what a reviewable change carries and
+for the mathematical conventions every kernel keeps.
 
 ## Benchmarks
 
@@ -189,12 +195,9 @@ make groups-ci
 make derivative-rank6
 make ci-weight-orbits
 make adaptive-area
-make union
 make union-closure
 make union-closure-routes
 make digests
-make sparse-rank
-make sparse-rank-batch
 make arb
 make finufft
 make finufft-cells
@@ -207,7 +210,6 @@ make subset-actions
 make modular-batches
 make modular-linear
 make cnf-verification
-make filon
 ```
 
 Run output-size and thread-count sweeps:
