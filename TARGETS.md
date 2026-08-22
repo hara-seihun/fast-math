@@ -502,3 +502,23 @@ paired CUDA parity, and the same captured-real-input benchmark.
 
 Choose a target only after recording a representative baseline. Keep new APIs
 batch-first and make output allocation explicit.
+
+### Recurring hand-written kernels
+
+An alpha-normalized NCD scan of the fleet's scratch trees on 2026-08-21 found
+190 hand-written C++ programs, none of which link this library, falling into ten
+structural families. The five below are the ones whose contract is mathematical
+rather than campaign-specific. Counts are files, against 1,394 scratch units in
+total; 244 of the Python ones already import `fast_math`, while the native ones
+import nothing.
+
+| Candidate | Evidence | Contract |
+| --- | --- | --- |
+| Base-p digit codec and class representatives | 49 programs re-implement index/digit conversion over a small prime, 33 of them also folding negation or scalar classes by hand | Batched index/digit conversion for `p <= 251` and `n <= 16`, with canonical scalar-class and negation-class representatives and dense class ids |
+| Spans of encoded F_p points | 26 programs hand-roll mod-p elimination and 23 a modular inverse, over points held as encoded integers rather than as matrices | Rank, span membership, and quotient coordinates for batches of encoded `F_p^n` points, over the shipped RREF |
+| Digit-tuple orbits under a permutation group | 24 programs transform base-m codes under generator arrays and deduplicate the images | Orbit representatives, orbit ids, and Burnside validation for `Z_m^k` tuples: the tuple analogue of the shipped packed-subset orbits |
+| Higher-order WL | one six-file cluster implements 3-WL and 4-WL with hand-written signature hashing against the shipped 2-WL | Stable k-WL colorings with exact signature canonicalization for k = 3 and 4 |
+| Colex subset ranking with orbit marking | 16 programs rank k-subsets combinadically to mark visited orbits during enumeration | Batched colex rank/unrank against a caller-owned visited bitmap |
+
+A candidate leaves this table with a benchmark against the program it replaces,
+not on its count alone.
