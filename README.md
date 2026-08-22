@@ -29,6 +29,12 @@ the exact modular/CNF certification-batch contracts.
   left nullspaces, inverses, and retained fixed-matrix solve batches. Native and
   HIP backends return either an exact solution or a left-null inconsistency
   witness for every right-hand side.
+- `fast_math.shift_gates`: exact shift-divisor gates for witness searches of
+  Erdos-647-style divisor conditions on n = M*v. Derives per-prime alive
+  tables and prime-forced linear forms from the modulus by exact integer
+  arithmetic, re-verifies them against direct factorization, and scans
+  v-intervals with a wheel-compressed segmented sieve plus deterministic
+  Miller-Rabin across reference, native CPU, and HIP backends.
 - `fast_math.cnf`: retained DIMACS-style clause plans with exact packed
   assignment verification and first-unsatisfied-clause witnesses on CPU and HIP.
 - `fast_math.elliptic`: exact Mestre-locus family construction over Q, retained

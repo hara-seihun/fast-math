@@ -837,6 +837,36 @@ FAST_MATH_API int fast_math_polynomial_evaluate_mod_u32(
     char* error_message,
     std::size_t error_message_size);
 
+/* Shift-divisor gate scan (see python/fast_math/shift_gates.py).  Survivors
+ * are the v in [v_start, v_start + v_count) lying in a wheel class, alive in
+ * every packed lookup table, whose every linear form a*v - b has a
+ * smooth-prime-free part that is prime or the square of a prime.  stats (may
+ * be NULL) receives {scanned, sieve_candidates, lut_alive, survivors}. */
+FAST_MATH_API int fast_math_shift_gate_scan_u64(
+    const uint64_t* form_a,
+    const uint64_t* form_b,
+    size_t form_count,
+    const uint32_t* smooth_primes,
+    size_t smooth_prime_count,
+    const uint64_t* lut_moduli,
+    const uint64_t* lut_offsets,
+    size_t lut_count,
+    const uint64_t* lut_bits,
+    uint64_t wheel,
+    const uint64_t* wheel_classes,
+    size_t wheel_class_count,
+    uint32_t sieve_low,
+    uint32_t sieve_bound,
+    uint64_t v_start,
+    uint64_t v_count,
+    uint32_t thread_count,
+    uint64_t* survivors,
+    size_t survivor_capacity,
+    size_t* survivor_count,
+    uint64_t* stats,
+    char* error_message,
+    size_t error_capacity);
+
 FAST_MATH_API int fast_math_determinants_mod_u32(
     const std::uint32_t* matrices,
     std::size_t matrix_count,
