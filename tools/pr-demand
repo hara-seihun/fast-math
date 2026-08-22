@@ -31,7 +31,8 @@ read -r actionable head < <(
       .data.repository as $r
       | [ $r.pullRequests.nodes[]
           | select(.isDraft | not)
-          | select([.reviews.nodes[].commit.oid] | index(.headRefOid) | not)
+          | . as $pr
+          | select([$pr.reviews.nodes[].commit.oid] | index($pr.headRefOid) | not)
         ] | length
       | tostring + " " + $r.defaultBranchRef.target.oid'
 )
