@@ -31,10 +31,15 @@ bool verify_dispatch(std::size_t count) {
 
 int main() {
   constexpr std::size_t task_count = 8192;
+  // First dispatch spawns the pool; give the newborn workers time to finish
+  // their initial grind and park before any accounting starts. On loaded
+  // continuous-integration runners their settle-out otherwise lands inside
+  // the measured window and masquerades as idle spinning.
   if (!verify_dispatch(task_count)) {
     std::cerr << "initial ForkUnion dispatch failed\n";
     return 1;
   }
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   const auto cpu_started = process_cpu_seconds();
   std::this_thread::sleep_for(std::chrono::milliseconds(250));
