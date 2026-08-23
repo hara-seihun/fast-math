@@ -506,8 +506,12 @@ batch-first and make output allocation explicit.
 
 ### Recurring hand-written kernels
 
+Scanned: 2026-08-21.
+
 `tools/duplication-scan` is what produced this table; rerun it over the current
-scratch trees rather than trusting these counts a month from now.
+scratch trees rather than trusting these counts a month from now. The
+`fast-math-kernel` lane's demand probe reads the date above and the rows below,
+so a rescan is what refills the queue and a merge is what drains it.
 
 An alpha-normalized NCD scan of the fleet's scratch trees on 2026-08-21 found
 190 hand-written C++ programs, none of which link this library, falling into ten

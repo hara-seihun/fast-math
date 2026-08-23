@@ -36,8 +36,8 @@ mkdir -p "$stage/lib"
 rsync -a --exclude __pycache__ python "$stage/"
 cp "$lib" "$stage/lib/libfast_math.so"
 ln -s libfast_math.so "$stage/lib/liblambda_fast.so"
-cp fast-math tools/pr-demand "$stage/"
-cp README.md ARCHITECTURE.md CONTRIBUTING.md smoke.py "$stage/"
+cp fast-math tools/pr-demand tools/kernel-demand "$stage/"
+cp README.md ARCHITECTURE.md CONTRIBUTING.md TARGETS.md smoke.py "$stage/"
 printf '%s\n' "$commit" > "$stage/COMMIT"
 chmod -R a+rX,ug+w "$stage"
 rm -rf "$version"
@@ -49,6 +49,7 @@ ln -sfn "$commit" "$dest/.current.$$"
 mv -T "$dest/.current.$$" "$dest/current"
 ln -sfn current/fast-math "$dest/fast-math"
 ln -sfn current/pr-demand "$dest/pr-demand"
+ln -sfn current/kernel-demand "$dest/kernel-demand"
 
 # Keep the version a long-running session may still be executing from, drop the
 # rest. -type d skips the `current` symlink, whose target must survive.
