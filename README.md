@@ -51,6 +51,9 @@ the exact modular/CNF certification-batch contracts.
   small prime fields (`p <= 251`, `width <= 16`) — batched ragged ranks and
   canonical RREF span reduction with query membership and quotient
   coordinates, across reference and native backends.
+- `fast_math.tuple_orbits`: orbit canonicalization, dense partitions, and
+  whole-space Burnside-validated structure for mixed-radix digit tuples under
+  positional permutation groups, across reference and native backends.
 - `fast_math.modular_linear`: canonical RREF, rank, row transforms, right and
   left nullspaces, inverses, and retained fixed-matrix solve batches. Native and
   HIP backends return either an exact solution or a left-null inconsistency
@@ -190,6 +193,23 @@ each rank test-and-sets one bit in a caller-owned uint64 visited bitmap of
 per-subset flag that is true when its rank was not already marked. Reference
 and native backends agree bitwise; the native route is single-threaded, so
 results are stable across thread counts.
+
+## Tuple orbit contract
+
+`Z_base^width` tuples are mixed-radix codes, most significant digit first;
+the code space is bounded at `2**24`. Generators are image arrays acting on
+digit positions (`p[i]` moves digit `i` to `p[i]`, composed `left[right]`);
+rows are validated as permutations, codes outside `base**width` fail rather
+than wrap, and the internally closed group is capped at 200000 elements on
+both backends so oversized closures raise identically off either route.
+`tuple_orbit_canonicalize` returns the numeric-minimum code per batch element
+with an is-canonical flag. `tuple_orbit_partition` formats that into dense
+class ids from zero, sorted representatives, and per-orbit sizes, mirroring
+`MaskOrbitPartition`. `tuple_orbit_space` canonicalizes every code and checks
+the orbit count against the Burnside average of `base**cycles(g)` computed
+independently from cycle counts, recording agreement in `burnside_valid`.
+Reference and native backends agree bitwise; the native route is
+single-threaded, so results are stable across thread counts.
 
 ## Encoded point span contract
 
