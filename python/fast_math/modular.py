@@ -325,6 +325,7 @@ def determinants_mod_u32(
     threads: int = 1,
     backend: ModularBackend = "auto",
 ) -> ModularDeterminantBatch:
+    """Determinants of a batch of square matrices over a 32-bit prime field."""
     raw = np.asarray(matrices)
     if raw.ndim != 3 or raw.shape[1] != raw.shape[2]:
         raise ValueError("matrices must have shape (count, order, order)")

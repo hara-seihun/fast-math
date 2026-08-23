@@ -52,6 +52,7 @@ def dirichlet_inverse(
     *,
     backend: Backend = "auto",
 ) -> InverseResult:
+    """Deterministic Dirichlet inverse coefficients of a finite source sequence."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     source_array = np.asarray(source, dtype=np.float64)
@@ -80,6 +81,7 @@ def truncated_inverse(
     *,
     backend: Backend = "auto",
 ) -> InverseResult:
+    """Dirichlet inverse of the heat-time source truncated at ``limit``."""
     if limit < 1:
         raise ValueError("limit must be positive")
     logarithms = np.log(np.arange(1, limit + 1, dtype=np.float64))

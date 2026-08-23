@@ -249,6 +249,7 @@ def fused_two_level(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> TwoLevelResult:
+    """Stream truncated Dirichlet products into fine sums, L1 envelopes, and two-level records."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if not 0.0 <= gamma_abs < 1.0:

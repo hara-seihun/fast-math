@@ -362,6 +362,7 @@ def encode_graph6(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> EncodedGraphBatch:
+    """Encode uint64 adjacency masks as unheaded short-form graph6 records."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:
@@ -394,6 +395,7 @@ def decode_graph6(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> DecodedGraphBatch:
+    """Decode unheaded short-form graph6 records into uint64 adjacency masks."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:
@@ -467,6 +469,7 @@ def delete_graph_vertices(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> VertexDeletedGraphBatch:
+    """Delete one named vertex per request and relabel each resulting subgraph."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:
@@ -557,6 +560,7 @@ def rooted_leaf_attachment_features(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> RootedLeafFeatureBatch:
+    """Root degree, two-star, and two-step counts for each rooted leaf attachment."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:
@@ -666,6 +670,7 @@ def graph_pair_profiles(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> GraphPairProfiles:
+    """Per vertex pair: adjacency, common and exclusive neighbors, common nonneighbors."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:
@@ -765,6 +770,7 @@ def find_cliques(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> CliqueBatchResult:
+    """Search each graph for a clique of the given order, or ``complement`` for one in its complement."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:
@@ -804,6 +810,7 @@ def find_independent_sets(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> CliqueBatchResult:
+    """Search each graph for an independent set of the given order."""
     return find_cliques(
         adjacency_masks,
         order,
@@ -878,6 +885,7 @@ def graph_invariants(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> GraphInvariantBatch:
+    """Batched degree, edge, triangle, wedge, and induced-P3 counts."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:
@@ -982,6 +990,7 @@ def induced_subgraph_profiles(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> InducedProfileBatch:
+    """Count induced subgraphs of one order into caller-defined canonical classes."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:
@@ -1034,6 +1043,7 @@ def induced_subgraph_profile_stack(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> InducedProfileStackBatch:
+    """Concatenated induced-class counts for several orders, validated and dispatched once."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:

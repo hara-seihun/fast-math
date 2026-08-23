@@ -217,6 +217,7 @@ def _library() -> ctypes.CDLL:
 
 
 def hip_available() -> bool:
+    """Whether the optional HIP library is present and loadable."""
     try:
         _library()
     except HipUnavailable:
@@ -225,6 +226,7 @@ def hip_available() -> bool:
 
 
 def hip_cnf_available() -> bool:
+    """Whether this HIP build carries the CNF kernels."""
     try:
         return hasattr(_library(), "fast_math_hip_cnf_create")
     except HipUnavailable:
@@ -232,6 +234,7 @@ def hip_cnf_available() -> bool:
 
 
 def hip_modular_available() -> bool:
+    """Whether this HIP build carries the modular polynomial kernels."""
     try:
         return hasattr(_library(), "fast_math_hip_polynomial_create")
     except HipUnavailable:
@@ -239,6 +242,7 @@ def hip_modular_available() -> bool:
 
 
 def hip_modular_linear_available() -> bool:
+    """Whether this HIP build carries the modular linear-system kernels."""
     try:
         return hasattr(_library(), "fast_math_hip_linear_system_create")
     except HipUnavailable:
@@ -246,6 +250,7 @@ def hip_modular_linear_available() -> bool:
 
 
 def hip_subset_actions_available() -> bool:
+    """Whether this HIP build carries the packed subset-action kernels."""
     try:
         return hasattr(_library(), "fast_math_hip_subset_action_create")
     except HipUnavailable:

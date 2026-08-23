@@ -660,6 +660,7 @@ def inverse_closed_atoms(
     *,
     identity: int = 0,
 ) -> InverseClosedAtoms:
+    """Partition a group into inverse-closed atoms, given its inverse map."""
     inverses = np.asarray(inverse_indices)
     if inverses.ndim != 1 or not np.issubdtype(inverses.dtype, np.integer):
         raise ValueError("inverse_indices must be a one-dimensional integer array")
@@ -698,6 +699,7 @@ def induced_atom_action(
     *,
     group_order: int | None = None,
 ) -> NDArray[np.uint32]:
+    """The permutation action that element generators induce on atoms."""
     prepared_atoms = tuple(
         np.ascontiguousarray(atom, dtype=np.uint32)
         for atom in atoms
@@ -734,6 +736,7 @@ def induced_atom_generators(
     atoms: InverseClosedAtoms,
     automorphism_generators: ArrayLike,
 ) -> NDArray[np.uint32]:
+    """The atom permutations induced by group automorphism generators."""
     return induced_atom_action(
         atoms,
         automorphism_generators,
@@ -781,6 +784,7 @@ def atom_subsets_to_element_words(
     threads: int = 0,
     backend: CIBackend = "auto",
 ) -> NDArray[np.uint64]:
+    """Expand packed atom subsets into packed group-element words."""
     _validate_backend(backend)
     if not isinstance(group_order, Integral) or not 1 <= int(
         group_order
@@ -850,6 +854,7 @@ def expand_atom_masks(
     threads: int = 0,
     backend: CIBackend = "auto",
 ) -> NDArray[np.uint64]:
+    """Expand packed atom masks into element words over one atom partition."""
     return atom_subsets_to_element_words(
         atom_masks,
         atoms,
@@ -1050,6 +1055,7 @@ def canonicalize_cayley_graphs(
     construction_backend: CIBackend | None = None,
     canonical_backend: CIBackend = "auto",
 ) -> CanonicalCayleyBatch:
+    """Canonical form of each Cayley graph given as a connection set over a multiplication table."""
     if require_undirected is not None:
         require_inverse_closed = bool(require_undirected)
     if construction_backend is not None:
@@ -1251,6 +1257,7 @@ def double_cosets(
     degree: int | None = None,
     backend: CIBackend = "auto",
 ) -> PermutationDoubleCosetPartition:
+    """Partition elements into double cosets of two generated subgroups."""
     if degree is not None:
         candidates = np.asarray(elements)
         if candidates.ndim != 2 or candidates.shape[1] != int(degree):

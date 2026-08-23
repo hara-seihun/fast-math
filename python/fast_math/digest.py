@@ -83,6 +83,7 @@ def serialize_u64_row(
     *,
     namespace: str | bytes = b"",
 ) -> bytes:
+    """The exact bytes ``digest_u64_rows`` hashes for one row."""
     prepared = _prepare_rows(row)
     if prepared.shape[0] != 1:
         raise ValueError("serialize_u64_row accepts exactly one row")
@@ -119,6 +120,7 @@ def digest_u64_rows(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> UInt64DigestBatch:
+    """Namespaced 64-bit digests of fixed-width uint64 rows, hashed in parallel."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:

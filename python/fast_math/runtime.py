@@ -20,6 +20,7 @@ class BackendCapability:
 
 
 def backend_capabilities() -> dict[str, BackendCapability]:
+    """Which backends this build can actually dispatch, per kernel family."""
     from .hip import hip_available
 
     system = platform.system()

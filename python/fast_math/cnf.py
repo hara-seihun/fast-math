@@ -58,6 +58,7 @@ def _prepare_clauses(
 
 
 def pack_boolean_assignments(values: ArrayLike) -> NDArray[np.uint64]:
+    """Pack rows of boolean variable assignments into uint64 words."""
     raw = np.asarray(values)
     if raw.ndim != 2:
         raise ValueError("assignments must have shape (count, variables)")

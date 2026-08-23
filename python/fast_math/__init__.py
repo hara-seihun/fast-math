@@ -1,5 +1,10 @@
-"""High-throughput native kernels shared across mathematical research."""
+"""High-throughput native kernels shared across mathematical research.
 
+``fast_math.find("csr")`` from Python, ``fast-math --find csr`` from a shell:
+both answer "is the kernel I am about to write by hand already here".
+"""
+
+from .index import Entry, entries, find
 from .cnf import CnfBackend, CnfEvaluation, CnfPlan, pack_boolean_assignments
 from .modular import (
     ModularBackend,
@@ -215,6 +220,9 @@ def __getattr__(name: str):
 
 
 __all__ = [
+    "Entry",
+    "entries",
+    "find",
     "AccumulationResult",
     "ActionBackend",
     "AffineBackend",

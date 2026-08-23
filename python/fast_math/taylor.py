@@ -52,6 +52,7 @@ def taylor_coefficients(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> TaylorCoefficientResult:
+    """Batched Taylor coefficient stacks for a complex source with per-term logarithms."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     base_array = _complex_vector(base, "base")
@@ -108,6 +109,7 @@ def evaluate_taylor_basis(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> TaylorEvaluationResult:
+    """Evaluate a prepared coefficient stack at each offset, with its log moments."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     basis_array = np.asarray(basis, dtype=np.complex128)
