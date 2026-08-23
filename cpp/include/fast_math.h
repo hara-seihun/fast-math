@@ -118,6 +118,16 @@ struct fast_math_colex_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_tuple_orbit_stats {
+  std::uint64_t group_size;
+  std::uint64_t code_count;
+  std::uint64_t canonical_evaluations;
+  std::uint64_t orbit_count;
+  std::uint64_t burnside_orbit_count;
+  std::uint8_t burnside_valid;
+  double elapsed_seconds;
+};
+
 struct fast_math_elliptic_stats {
   std::uint64_t prime_count;
   std::uint64_t parameter_count;
@@ -877,6 +887,36 @@ FAST_MATH_API int fast_math_colex_visit_u64(
     std::size_t visited_word_count,
     std::uint8_t* newly_visited,
     fast_math_colex_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+// Tuple orbits: a permutation group on the `width` digit positions acts on
+// mixed-radix codes for Z_base^width (code digits most significant first).
+// Permutations are image arrays with p[i] moving the digit at position i to
+// position p[i]; canonical codes are the numeric minima over each orbit.
+FAST_MATH_API int fast_math_tuple_orbit_canonicalize_u64(
+    const std::uint32_t* generators,
+    std::size_t generator_count,
+    std::uint32_t degree,
+    std::uint32_t base,
+    const std::uint64_t* codes,
+    std::size_t code_count,
+    std::uint64_t* canonical_codes,
+    std::uint8_t* is_canonical,
+    fast_math_tuple_orbit_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+// Canonicalizes every code of the full Z_base^width space and validates the
+// orbit count against the Burnside average of base^(cycle count).
+FAST_MATH_API int fast_math_tuple_orbit_space_u64(
+    const std::uint32_t* generators,
+    std::size_t generator_count,
+    std::uint32_t degree,
+    std::uint32_t base,
+    std::uint64_t* canonical_codes,
+    std::size_t space_capacity,
+    fast_math_tuple_orbit_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 

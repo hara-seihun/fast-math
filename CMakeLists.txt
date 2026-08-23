@@ -81,6 +81,7 @@ set(FAST_MATH_CORE_SOURCES
   cpp/src/sparse_rank_batch.cpp
   cpp/src/subset_action.cpp
   cpp/src/taylor.cpp
+  cpp/src/tuple_orbits.cpp
 )
 
 set(FAST_MATH_DOMAIN_SOURCES

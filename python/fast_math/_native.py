@@ -235,6 +235,18 @@ class NativeColexStats(ctypes.Structure):
     ]
 
 
+class NativeTupleOrbitStats(ctypes.Structure):
+    _fields_ = [
+        ("group_size", ctypes.c_uint64),
+        ("code_count", ctypes.c_uint64),
+        ("canonical_evaluations", ctypes.c_uint64),
+        ("orbit_count", ctypes.c_uint64),
+        ("burnside_orbit_count", ctypes.c_uint64),
+        ("burnside_valid", ctypes.c_uint8),
+        ("elapsed_seconds", ctypes.c_double),
+    ]
+
+
 class NativeAdaptiveStats(ctypes.Structure):
     _fields_ = [
         ("target_count", ctypes.c_uint64),
@@ -809,6 +821,36 @@ def load_library() -> ctypes.CDLL:
                 *_colex_tail,
             ]
             library.fast_math_colex_visit_u64.restype = ctypes.c_int
+        if hasattr(library, "fast_math_tuple_orbit_canonicalize_u64"):
+            _tuple_orbit_tail = [
+                ctypes.POINTER(NativeTupleOrbitStats),
+                ctypes.POINTER(ctypes.c_char),
+                ctypes.c_size_t,
+            ]
+            library.fast_math_tuple_orbit_canonicalize_u64.argtypes = [
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.POINTER(ctypes.c_uint8),
+                *_tuple_orbit_tail,
+            ]
+            library.fast_math_tuple_orbit_canonicalize_u64.restype = (
+                ctypes.c_int
+            )
+            library.fast_math_tuple_orbit_space_u64.argtypes = [
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                *_tuple_orbit_tail,
+            ]
+            library.fast_math_tuple_orbit_space_u64.restype = ctypes.c_int
         if hasattr(library, "fast_math_base_p_digits_u64"):
             _u64p = ctypes.POINTER(ctypes.c_uint64)
             _u8p = ctypes.POINTER(ctypes.c_uint8)
@@ -1594,6 +1636,69 @@ def fp_point_span_native(
         quotient_codes,
         stats,
     )
+
+
+def tuple_orbit_canonicalize_native(
+    generators: NDArray[np.uint32],
+    degree: int,
+    base: int,
+    codes: NDArray[np.uint64],
+) -> tuple[
+    NDArray[np.uint64], NDArray[np.bool_], NativeTupleOrbitStats
+]:
+    library = load_library()
+    if not hasattr(library, "fast_math_tuple_orbit_canonicalize_u64"):
+        raise NativeUnavailable(
+            "fast-math was built without tuple-orbit canonicalization"
+        )
+    canonical = np.empty(len(codes), dtype=np.uint64)
+    is_canonical = np.empty(len(codes), dtype=np.uint8)
+    stats = NativeTupleOrbitStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_tuple_orbit_canonicalize_u64(
+        _uint32_pointer(generators),
+        len(generators),
+        degree,
+        base,
+        _uint64_pointer(codes),
+        len(codes),
+        canonical.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        is_canonical.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return canonical, is_canonical.view(np.bool_), stats
+
+
+def tuple_orbit_space_native(
+    generators: NDArray[np.uint32],
+    degree: int,
+    base: int,
+    space_capacity: int,
+) -> tuple[NDArray[np.uint64], NativeTupleOrbitStats]:
+    library = load_library()
+    if not hasattr(library, "fast_math_tuple_orbit_space_u64"):
+        raise NativeUnavailable(
+            "fast-math was built without tuple-orbit canonicalization"
+        )
+    canonical = np.empty(space_capacity, dtype=np.uint64)
+    stats = NativeTupleOrbitStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_tuple_orbit_space_u64(
+        _uint32_pointer(generators),
+        len(generators),
+        degree,
+        base,
+        canonical.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        space_capacity,
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return canonical, stats
 
 
 def base_p_digits_native(

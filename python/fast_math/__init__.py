@@ -127,6 +127,13 @@ from .elliptic import (
 )
 from .union import union_closed_family_masks
 from .colex import colex_rank, colex_unrank, colex_visit
+from .tuple_orbits import (
+    TupleOrbitPartition,
+    TupleOrbitSpace,
+    tuple_orbit_canonicalize,
+    tuple_orbit_partition,
+    tuple_orbit_space,
+)
 from .base_p import (
     BasePBackend,
     BasePClasses,
@@ -354,6 +361,11 @@ __all__ = [
     "colex_rank",
     "colex_unrank",
     "colex_visit",
+    "TupleOrbitPartition",
+    "TupleOrbitSpace",
+    "tuple_orbit_canonicalize",
+    "tuple_orbit_partition",
+    "tuple_orbit_space",
     "BasePBackend",
     "BasePClasses",
     "BasePClassTable",
