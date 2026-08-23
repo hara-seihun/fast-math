@@ -59,6 +59,7 @@ def test_hip_polynomial_matches_reference() -> None:
 
 
 def test_modular_determinants_match_reference_and_flint() -> None:
+    pytest.importorskip("flint", reason="python-flint is unavailable")
     from flint import nmod_mat
 
     prime = 1_000_000_007

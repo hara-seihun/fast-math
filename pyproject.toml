@@ -37,6 +37,7 @@ dev = [
   "networkx>=3.5",
   "pytest>=8.0",
   "pytest-xdist>=3.8",
+  "python-flint>=0.6,<0.8",
 ]
 
 [tool.hatch.build.targets.wheel]

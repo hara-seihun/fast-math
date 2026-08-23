@@ -21,7 +21,7 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --dev
-      - run: make test
+      - run: uv run make test
 
   portable:
     runs-on: ubuntu-24.04
@@ -31,4 +31,4 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --dev
-      - run: make portable-test
+      - run: uv run make portable-test
