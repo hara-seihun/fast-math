@@ -69,6 +69,7 @@ endif()
 set(FAST_MATH_CORE_SOURCES
   cpp/src/base_p.cpp
   cpp/src/cnf.cpp
+  cpp/src/colex.cpp
   cpp/src/digest.cpp
   cpp/src/graph64.cpp
   cpp/src/groups.cpp

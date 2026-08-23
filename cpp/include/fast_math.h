@@ -103,6 +103,13 @@ struct fast_math_union_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_colex_stats {
+  std::uint64_t subset_count;
+  std::uint64_t binomial_evaluations;
+  std::uint64_t newly_visited;
+  double elapsed_seconds;
+};
+
 struct fast_math_elliptic_stats {
   std::uint64_t prime_count;
   std::uint64_t parameter_count;
@@ -788,6 +795,46 @@ FAST_MATH_API int fast_math_base_p_class_table_u64(
     std::uint32_t* class_counts,
     std::size_t representative_capacity,
     fast_math_base_p_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+// Colexicographical ranking for subsets packed as uint64 element masks.
+// The rank of the subset {c_1 < c_2 < ... < c_k} is C(c_1, 1) + ... +
+// C(c_k, k), a bijection between the weight-k subsets of
+// {0, ..., element_count - 1} and [0, C(element_count, k)].
+// element_count must be between 1 and 64.
+FAST_MATH_API int fast_math_colex_rank_u64(
+    const std::uint64_t* subset_masks,
+    std::size_t subset_count,
+    std::uint32_t element_count,
+    std::uint64_t* ranks,
+    fast_math_colex_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_colex_unrank_u64(
+    const std::uint64_t* ranks,
+    std::size_t rank_count,
+    std::uint32_t element_count,
+    std::uint32_t weight,
+    std::uint64_t* subset_masks,
+    fast_math_colex_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+// Marks the ranks of fixed-weight subsets in a caller-owned visited bitmap
+// of ceil(C(element_count, weight) / 64) words, returning one flag per
+// subset that is 1 when its rank was not already set. The bitmap is updated
+// in place; all subsets must have exactly `weight` elements.
+FAST_MATH_API int fast_math_colex_visit_u64(
+    const std::uint64_t* subset_masks,
+    std::size_t subset_count,
+    std::uint32_t element_count,
+    std::uint32_t weight,
+    std::uint64_t* visited_words,
+    std::size_t visited_word_count,
+    std::uint8_t* newly_visited,
+    fast_math_colex_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 
