@@ -1060,3 +1060,109 @@ class AffineHipPlan:
     def clear_cache() -> None:
         # HIP's allocator is released when each persistent plan is closed.
         return None
+
+
+_SHIFT_GATE_DECLARED = False
+
+
+def _declare_shift_gate(library: ctypes.CDLL) -> None:
+    global _SHIFT_GATE_DECLARED
+    if _SHIFT_GATE_DECLARED:
+        return
+    if not hasattr(library, "fast_math_hip_shift_gate_scan_u64"):
+        raise HipUnavailable("HIP shift-gate support is not built")
+    library.fast_math_hip_shift_gate_scan_u64.argtypes = [
+        ctypes.POINTER(ctypes.c_uint64),
+        ctypes.POINTER(ctypes.c_uint64),
+        ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_uint64),
+        ctypes.POINTER(ctypes.c_uint64),
+        ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_uint64),
+        ctypes.c_size_t,
+        ctypes.c_uint64,
+        ctypes.POINTER(ctypes.c_uint64),
+        ctypes.c_size_t,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_uint64,
+        ctypes.c_uint64,
+        ctypes.POINTER(ctypes.c_uint64),
+        ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_size_t),
+        ctypes.POINTER(ctypes.c_uint64),
+        ctypes.POINTER(ctypes.c_char),
+        ctypes.c_size_t,
+    ]
+    library.fast_math_hip_shift_gate_scan_u64.restype = ctypes.c_int
+    _SHIFT_GATE_DECLARED = True
+
+
+def hip_shift_gates_available() -> bool:
+    try:
+        _declare_shift_gate(_library())
+        return True
+    except HipUnavailable:
+        return False
+
+
+def shift_gate_scan_hip(plan, v_start: int, v_count: int, *, survivor_capacity: int = 1 << 20):
+    """HIP execution of ShiftGateScanPlan.scan; same contract as native."""
+    from .shift_gates import ShiftGateStats
+
+    library = _library()
+    _declare_shift_gate(library)
+    gate = plan.gate
+
+    form_a = np.array([f.a for f in gate.forms], dtype=np.uint64)
+    form_b = np.array([f.b for f in gate.forms], dtype=np.uint64)
+    smooth = np.array(gate.smooth_primes, dtype=np.uint32)
+    lut_moduli, lut_offsets, lut_bits = plan.packed_luts()
+    classes = plan.wheel_classes
+
+    survivors = np.zeros(survivor_capacity, dtype=np.uint64)
+    count = ctypes.c_size_t(0)
+    stats = np.zeros(4, dtype=np.uint64)
+    error = ctypes.create_string_buffer(256)
+
+    def u64_ptr(array):
+        return array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64))
+
+    status = library.fast_math_hip_shift_gate_scan_u64(
+        u64_ptr(form_a),
+        u64_ptr(form_b),
+        len(form_a),
+        smooth.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        len(smooth),
+        u64_ptr(lut_moduli),
+        u64_ptr(lut_offsets),
+        len(lut_moduli),
+        u64_ptr(lut_bits),
+        len(lut_bits),
+        ctypes.c_uint64(plan.wheel),
+        u64_ptr(classes),
+        len(classes),
+        ctypes.c_uint32(plan.sieve_low),
+        ctypes.c_uint32(plan.sieve_bound),
+        ctypes.c_uint64(v_start),
+        ctypes.c_uint64(v_count),
+        u64_ptr(survivors),
+        survivor_capacity,
+        ctypes.byref(count),
+        u64_ptr(stats),
+        error,
+        ctypes.sizeof(error),
+    )
+    if status != 0:
+        raise HipUnavailable(error.value.decode() or f"HIP scan failed with status {status}")
+    return (
+        survivors[: count.value].copy(),
+        ShiftGateStats(
+            scanned=int(stats[0]),
+            wheel_alive=int(stats[2]),
+            sieve_survivors=int(stats[1]),
+            survivors=int(stats[3]),
+        ),
+    )
