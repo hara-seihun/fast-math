@@ -76,6 +76,7 @@ set(FAST_MATH_CORE_SOURCES
   cpp/src/groups.cpp
   cpp/src/large_graph.cpp
   cpp/src/modular.cpp
+  cpp/src/planar_collinearity.cpp
   cpp/src/segments.cpp
   cpp/src/sparse_rank.cpp
   cpp/src/sparse_rank_batch.cpp
@@ -171,6 +172,20 @@ if(BUILD_TESTING)
     COMMAND fast_math_sparse_rank_core_test
   )
 endif()
+
+add_executable(fast_math_planar_collinearity_benchmark
+  benchmarks/benchmark_planar_collinearity.cpp
+)
+target_compile_features(
+  fast_math_planar_collinearity_benchmark
+  PRIVATE
+    cxx_std_20
+)
+target_link_libraries(
+  fast_math_planar_collinearity_benchmark
+  PRIVATE
+    fast_math
+)
 
 add_executable(fast_math_fp_span_ranks_benchmark
   benchmarks/benchmark_fp_span_ranks.cpp

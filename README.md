@@ -54,6 +54,9 @@ the exact modular/CNF certification-batch contracts.
 - `fast_math.tuple_orbits`: orbit canonicalization, dense partitions, and
   whole-space Burnside-validated structure for mixed-radix digit tuples under
   positional permutation groups, across reference and native backends.
+- `fast_math.planar`: exact collinear-triple totals, per-point conflict
+  degrees, and ragged add/delete edit scores for int32 planar point sets,
+  across executable reference and deterministic threaded native backends.
 - `fast_math.modular_linear`: canonical RREF, rank, row transforms, right and
   left nullspaces, inverses, and retained fixed-matrix solve batches. Native and
   HIP backends return either an exact solution or a left-null inconsistency
@@ -211,6 +214,22 @@ the orbit count against the Burnside average of `base**cycles(g)` computed
 independently from cycle counts, recording agreement in `burnside_valid`.
 Reference and native backends agree bitwise; the native route is
 single-threaded, so results are stable across thread counts.
+
+## Planar collinearity contract
+
+`planar_collinearity_scores` accepts up to 512 unique int32 `(x, y)` points
+and a ragged batch of deletion indices and added points. It returns the exact
+base collinear-triple total, each base point's conflict degree, and each edited
+set's score and delta. A deleted point may be re-added, but every resulting
+set must remain duplicate-free. Native determinants widen coordinate
+differences before multiplication, so the full int32 domain is exact.
+
+The native route enumerates base conflicts once, then scores only triples
+that survive deletion or contain added points; static edit partitioning makes
+outputs independent of thread count. A positive `score_cutoff` enables the
+search-loop form: flagged edits stop at the cutoff, while unflagged scores
+remain exact. The executable reference rebuilds every edited set and evaluates
+its triple definition directly.
 
 ## Encoded point span contract
 

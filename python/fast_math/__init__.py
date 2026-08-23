@@ -134,6 +134,11 @@ from .tuple_orbits import (
     tuple_orbit_partition,
     tuple_orbit_space,
 )
+from .planar import (
+    PlanarCollinearityBackend,
+    PlanarCollinearityScores,
+    planar_collinearity_scores,
+)
 from .base_p import (
     BasePBackend,
     BasePClasses,
@@ -370,6 +375,9 @@ __all__ = [
     "tuple_orbit_canonicalize",
     "tuple_orbit_partition",
     "tuple_orbit_space",
+    "PlanarCollinearityBackend",
+    "PlanarCollinearityScores",
+    "planar_collinearity_scores",
     "BasePBackend",
     "BasePClasses",
     "BasePClassTable",
