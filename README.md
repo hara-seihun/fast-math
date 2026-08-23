@@ -47,6 +47,10 @@ the exact modular/CNF certification-batch contracts.
 - `fast_math.colex`: batched colexicographical rank/unrank for uint64 element
   masks (`element_count <= 64`) with fixed-weight visit marking against a
   caller-owned visited bitmap, across reference and native backends.
+- `fast_math.fp_spans`: exact spans of little-endian base-p encoded points over
+  small prime fields (`p <= 251`, `width <= 16`) — batched ragged ranks and
+  canonical RREF span reduction with query membership and quotient
+  coordinates, across reference and native backends.
 - `fast_math.modular_linear`: canonical RREF, rank, row transforms, right and
   left nullspaces, inverses, and retained fixed-matrix solve batches. Native and
   HIP backends return either an exact solution or a left-null inconsistency
@@ -186,6 +190,24 @@ each rank test-and-sets one bit in a caller-owned uint64 visited bitmap of
 per-subset flag that is true when its rank was not already marked. Reference
 and native backends agree bitwise; the native route is single-threaded, so
 results are stable across thread counts.
+
+## Encoded point span contract
+
+Points are the same little-endian base-p codes as the base-p codec:
+`p <= 251`, `width <= 16`, and `p**width` must fit in uint64; composite
+fields, malformed ragged offsets, and out-of-space codes fail in both Python
+and the C ABI. `fp_span_ranks(point_codes, span_offsets, prime, width)` takes
+`span_count + 1` offsets (initial zero, final equal to the point count) and
+returns one exact rank per contiguous batch; empty batches are valid.
+`fp_point_span(point_codes, query_codes, prime, width)` returns the canonical
+RREF basis (unique for the row space) with rows ordered by pivot column,
+each row tagged with the input index that produced it, per-point independence
+flags, per-query membership flags, query coordinates against that basis, and a
+canonical quotient residual code: for every query,
+`q = coordinates @ basis + quotient` over `F_p`, and membership is exactly
+`quotient == 0`. Reference and native backends return complete identical
+outputs; the native route is single-threaded, so results are stable across
+thread counts.
 
 ## Build and test
 
