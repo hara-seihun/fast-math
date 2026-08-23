@@ -91,6 +91,12 @@ struct fast_math_digest_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_base_p_stats {
+  std::uint64_t element_count;
+  std::uint64_t class_count;
+  double elapsed_seconds;
+};
+
 struct fast_math_union_stats {
   std::uint64_t family_count;
   std::uint64_t pair_checks;
@@ -717,6 +723,71 @@ FAST_MATH_API int fast_math_digest_u64_rows_sha256(
     std::uint32_t thread_count,
     std::uint8_t* digests,
     fast_math_digest_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+// Batched index/digit codec and scalar/negation class representatives over
+// encoded F_p^n points. Digits are little-endian uint8 rows (digit zero is
+// the p^0 coefficient); codes are little-endian base-p integers. The scalar
+// canonical form scales the least-significant nonzero digit to one; the
+// negation canonical form is the smaller of a code and its digit-wise
+// negation. Class ids are dense from zero in ascending representative order,
+// with the zero vector as class zero.
+FAST_MATH_API int fast_math_base_p_digits_u64(
+    const std::uint64_t* codes,
+    std::size_t code_count,
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint8_t* digits,
+    fast_math_base_p_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_base_p_codes_u64(
+    const std::uint8_t* digits,
+    std::size_t code_count,
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint64_t* codes,
+    fast_math_base_p_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_base_p_negation_codes_u64(
+    const std::uint64_t* codes,
+    std::size_t code_count,
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint64_t* negated,
+    fast_math_base_p_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_base_p_scalar_normals_u64(
+    const std::uint64_t* codes,
+    std::size_t code_count,
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint64_t* normals,
+    fast_math_base_p_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+// Fills one class id per point of the whole p^width space plus the dense
+// representative and member-count tables. class_kind selects negation
+// classes (zero) or scalar classes (one). representative_capacity bounds the
+// representative/count buffers and must cover the exact class count:
+// (p^width + 1) / 2 for negation when p is odd (p^width when p is two), and
+// (p^width - 1) / (p - 1) + 1 for scalar classes.
+FAST_MATH_API int fast_math_base_p_class_table_u64(
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint32_t class_kind,
+    std::uint32_t* class_ids,
+    std::uint64_t* representatives,
+    std::uint32_t* class_counts,
+    std::size_t representative_capacity,
+    fast_math_base_p_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 

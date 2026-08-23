@@ -41,6 +41,9 @@ the exact modular/CNF certification-batch contracts.
   package as the native runtime owner.
 - `fast_math.modular`: retained exact uint32-prime polynomial value/derivative
   batches and dense determinant batches across reference, native CPU, and HIP.
+- `fast_math.base_p`: batched index/digit codec over encoded `F_p^n` points
+  (`p <= 251`, `n <= 16`) with digit-wise negation, projective normal forms,
+  and dense negation/scalar class tables across reference and native backends.
 - `fast_math.modular_linear`: canonical RREF, rank, row transforms, right and
   left nullspaces, inverses, and retained fixed-matrix solve batches. Native and
   HIP backends return either an exact solution or a left-null inconsistency
@@ -138,6 +141,30 @@ The retained Lambda kernels are:
 The streaming kernel aligns work with the retained rigorous weight intervals,
 uses only thread-local tiles, and serially reduces fine pieces in mathematical
 order. It never materializes the 100-million-element output arrays.
+
+## Base-p point codec contract
+
+Research routes hold `F_p^n` points as plain base-p integers. Digit `j` of a
+code is its multiple of `p^j` (least-significant first), digits are uint8
+rows, codes are uint64, primes run through 251, widths through sixteen, and
+`p^width` must fit uint64; violations raise instead of wrapping.
+
+`base_p_digits` and `base_p_codes` convert both ways. `base_p_negation_codes`
+negates each digit modulo `p`, which is the additive inverse of the point,
+not integer negation of the code. `base_p_scalar_normals` scales each point
+so its least-significant nonzero digit becomes one: one representative per
+projective point, fixed under unit multiples, with the zero vector mapping
+to zero.
+
+`base_p_class_table(prime, width, classes=...)` classifies the whole space.
+`classes="negation"` pairs nonzero codes with their negations (singletons
+when `p = 2`); `classes="scalar"` groups projective points. Class ids are
+dense from zero in ascending representative order, so the zero vector forms
+class zero; `representatives` and `counts` have exactly
+`(p**width + 1) // 2` entries for odd-prime negation classes (`p**width`
+when `p = 2`) and `(p**width - 1) // (p - 1) + 1` for scalar classes.
+Negation-class representatives compose from shipped calls:
+`np.minimum(codes, base_p_negation_codes(codes, prime, width))`.
 
 ## Build and test
 

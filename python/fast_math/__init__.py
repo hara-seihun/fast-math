@@ -126,6 +126,16 @@ from .elliptic import (
     quartic_points,
 )
 from .union import union_closed_family_masks
+from .base_p import (
+    BasePBackend,
+    BasePClasses,
+    BasePClassTable,
+    base_p_class_table,
+    base_p_codes,
+    base_p_digits,
+    base_p_negation_codes,
+    base_p_scalar_normals,
+)
 from .adaptive import (
     AdaptiveAreaBatch,
     AdaptiveBackend,
@@ -339,6 +349,14 @@ __all__ = [
     "mestre_quartic",
     "quartic_points",
     "union_closed_family_masks",
+    "BasePBackend",
+    "BasePClasses",
+    "BasePClassTable",
+    "base_p_class_table",
+    "base_p_codes",
+    "base_p_digits",
+    "base_p_negation_codes",
+    "base_p_scalar_normals",
     "AdaptiveAreaBatch",
     "AdaptiveBackend",
     "ExactAdaptiveAreaBatch",
