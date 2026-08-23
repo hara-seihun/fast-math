@@ -155,6 +155,7 @@ def _exponent_lut(modulus: int, j: int, p: int, cap: int) -> list[int | None]:
 
 
 def derive_shift_gate(modulus: int, *, jmax: int = 64) -> ShiftGate:
+    """Derive the exact divisor gate for ``n = modulus * v`` from the modulus alone."""
     factors = _factorize(modulus)
     if any(e < 1 for e in factors.values()) or modulus < 2:
         raise ValueError("modulus must be an integer >= 2")
