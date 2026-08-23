@@ -162,6 +162,20 @@ def _library() -> ctypes.CDLL:
             ctypes.c_size_t,
         ]
         library.fast_math_wl2_refine_u32.restype = ctypes.c_int
+        if hasattr(library, "fast_math_graph_wlk_refine_u64"):
+            library.fast_math_graph_wlk_refine_u64.argtypes = [
+                u64,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_size_t,
+                u32,
+                u64,
+                stats,
+                char,
+                ctypes.c_size_t,
+            ]
+            library.fast_math_graph_wlk_refine_u64.restype = ctypes.c_int
         library.fast_math_intersection_numbers_u64.argtypes = [
             u32,
             ctypes.c_uint32,
@@ -444,6 +458,42 @@ def wl2_refine_native(
     )
     _raise(status, error)
     return stable, int(relation_count.value), stats
+
+
+def graph_wlk_refine_native(
+    adjacency_words: NDArray[np.uint64],
+    dimension: int,
+) -> tuple[NDArray[np.uint32], NDArray[np.uint64], NativeCIStats]:
+    library = _library()
+    if not hasattr(library, "fast_math_graph_wlk_refine_u64"):
+        raise NativeUnavailable(
+            "fast-math higher-order WL kernel is unavailable"
+        )
+    vertex_count, word_count = adjacency_words.shape
+    tuple_count = vertex_count**dimension
+    colors = np.empty(tuple_count, dtype=np.uint32)
+    color_sizes = np.empty(tuple_count, dtype=np.uint64)
+    stats = NativeCIStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_graph_wlk_refine_u64(
+        _u64(adjacency_words),
+        vertex_count,
+        word_count,
+        dimension,
+        tuple_count,
+        _u32(colors),
+        _u64(color_sizes),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _raise(status, error)
+    color_count = int(stats.class_count)
+    return (
+        colors.reshape((vertex_count,) * dimension),
+        color_sizes[:color_count].copy(),
+        stats,
+    )
 
 
 def intersection_numbers_native(

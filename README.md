@@ -83,8 +83,9 @@ the exact modular/CNF certification-batch contracts.
   fixed-weight subset orbits without materializing the full weight slice, batched
   Cayley graph construction into the existing nauty API, generalized
   dihedral/Hol(A) helpers, R-0805 derivative-group orbits, exact
-  coherent-configuration/2-WL refinement with intersection numbers, and
-  bounded-degree `u64_mask_lut`/`compose_u64_mask_luts` microkernels for
+  coherent-configuration/2-WL refinement with intersection numbers, stable
+  exact 3-WL and 4-WL with canonical tuple-color histograms, and bounded-degree
+  `u64_mask_lut`/`compose_u64_mask_luts` microkernels for
   Python search loops over small packed connection masks.
 - `fast_math.adaptive`: batched optimal adaptive-oracle areas over the ternary
   restriction lattice of `{-1,+1}^n`, with float and exact-integer Bellman
