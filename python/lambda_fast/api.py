@@ -40,12 +40,14 @@ class AccumulationResult:
 
 
 def available_backends() -> tuple[str, ...]:
+    """Which backends this build can dispatch: native and reference, or reference alone."""
     if native_available():
         return ("native", "reference")
     return ("reference",)
 
 
 def native_version() -> str | None:
+    """The loaded native library's version, or None when only the reference backend is present."""
     return _native_version()
 
 

@@ -9,6 +9,22 @@ build-time standard-thread fallback.
 `import lambda_fast`, `LAMBDA_FAST_LIBRARY`, `liblambda_fast`, and the
 `lambda_fast_*` C symbols remain supported compatibility interfaces.
 
+## Is the kernel you need already here
+
+Ask the library, not this file:
+
+```sh
+fast-math --find csr              # name, summary, and module all match
+fast-math --find "common neighbor"
+fast-math --index                 # every public name, one line each
+```
+
+and `fast_math.find("orbit", "subset")` from inside Python. The listing is
+derived from the package's own exports and docstrings, so it is never a
+separate list going stale. A miss is worth acting on: it means the loop you are
+about to write by hand is missing, and [`CONTRIBUTING.md`](CONTRIBUTING.md) is
+how it stops being missing for everyone after you.
+
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the core/domain boundary, retained-plan
 direction, backend contract, and evidence-based GPU priorities. See
 [`EXPLORATION.md`](EXPLORATION.md) for the installed specialist-system survey and

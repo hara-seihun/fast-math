@@ -86,6 +86,7 @@ class ExactAdaptiveAreaBatch:
 
 
 def restriction_count(coordinate_count: int) -> int:
+    """How many ternary restrictions ``{-1, +1}^n`` has, that is ``3**n``."""
     return 3**coordinate_count
 
 

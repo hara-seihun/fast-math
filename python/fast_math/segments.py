@@ -83,6 +83,7 @@ def segmented_complex_stats(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> SegmentedComplexStats:
+    """Per-segment complex sum, L1 mass, and total variation over one value array."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     if threads < 0:

@@ -107,6 +107,7 @@ def power_moments(
     threads: int = 1,
     backend: Backend = "auto",
 ) -> PowerMomentResult:
+    """Powers of one value stream with their ordinary, phase-current, and radial moments, in one pass."""
     if backend not in {"auto", "native", "reference"}:
         raise ValueError(f"unknown backend: {backend}")
     value_array = _complex_vector(values, "values")

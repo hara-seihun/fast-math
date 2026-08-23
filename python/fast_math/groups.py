@@ -120,6 +120,7 @@ def compose_permutations(left: ArrayLike, right: ArrayLike) -> NDArray[np.uint32
 
 
 def invert_permutation(permutation: ArrayLike) -> NDArray[np.uint32]:
+    """The inverse of one permutation."""
     array, degree = _prepare_permutations(
         permutation, None, name="permutation"
     )
@@ -495,6 +496,7 @@ def group_order(
     degree: int | None = None,
     backend: GroupBackend = "auto",
 ) -> int:
+    """Order of the permutation group these generators generate, by Schreier-Sims."""
     return schreier_sims(
         generators, degree=degree, backend=backend
     ).order

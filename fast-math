@@ -2,6 +2,10 @@
 # Runs python3 with the fast-math package and its native library resolved.
 # Works from the development tree (library in build/) and from a published
 # tree (library in lib/), so one launcher serves both.
+#
+# --find, --index, and --help are answered by fast_math.__main__ instead of
+# being handed to python3, because the first thing a stuck session types is
+# the thing it should get an answer from.
 set -euo pipefail
 
 root="$(unset CDPATH; cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)"
@@ -28,5 +32,11 @@ fi
 export FAST_MATH_LIBRARY
 export LAMBDA_FAST_LIBRARY="${LAMBDA_FAST_LIBRARY:-$FAST_MATH_LIBRARY}"
 export PYTHONPATH="$root/python${PYTHONPATH:+:$PYTHONPATH}"
+
+case "${1:-}" in
+  --find | --index | --help | -h)
+    exec python3 -m fast_math "$@"
+    ;;
+esac
 
 exec python3 "$@"
