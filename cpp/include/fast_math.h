@@ -97,6 +97,14 @@ struct fast_math_base_p_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_fp_span_stats {
+  std::uint64_t span_count;
+  std::uint64_t point_count;
+  std::uint64_t query_count;
+  std::uint64_t rank_sum;
+  double elapsed_seconds;
+};
+
 struct fast_math_union_stats {
   std::uint64_t family_count;
   std::uint64_t pair_checks;
@@ -795,6 +803,40 @@ FAST_MATH_API int fast_math_base_p_class_table_u64(
     std::uint32_t* class_counts,
     std::size_t representative_capacity,
     fast_math_base_p_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+// Exact spans of encoded F_p^width points, using the base-p codec convention.
+// The ragged rank API takes span_count + 1 offsets. The richer one-span API
+// returns canonical RREF rows, the input points that increased rank, query
+// coefficients against the RREF, and canonical quotient residual codes.
+FAST_MATH_API int fast_math_fp_span_ranks_u64(
+    const std::uint64_t* point_codes,
+    std::size_t point_count,
+    const std::uint64_t* span_offsets,
+    std::size_t span_count,
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint32_t* ranks,
+    fast_math_fp_span_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_fp_point_span_u64(
+    const std::uint64_t* point_codes,
+    std::size_t point_count,
+    const std::uint64_t* query_codes,
+    std::size_t query_count,
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint64_t* pivot_indices,
+    std::uint32_t* pivot_columns,
+    std::uint64_t* reduced_basis_codes,
+    std::uint8_t* independent_points,
+    std::uint8_t* query_members,
+    std::uint32_t* query_coordinates,
+    std::uint64_t* query_quotient_codes,
+    fast_math_fp_span_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 

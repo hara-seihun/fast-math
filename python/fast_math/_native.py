@@ -208,6 +208,16 @@ class NativeBasePStats(ctypes.Structure):
     ]
 
 
+class NativeFpSpanStats(ctypes.Structure):
+    _fields_ = [
+        ("span_count", ctypes.c_uint64),
+        ("point_count", ctypes.c_uint64),
+        ("query_count", ctypes.c_uint64),
+        ("rank_sum", ctypes.c_uint64),
+        ("elapsed_seconds", ctypes.c_double),
+    ]
+
+
 class NativeUnionStats(ctypes.Structure):
     _fields_ = [
         ("family_count", ctypes.c_uint64),
@@ -855,6 +865,40 @@ def load_library() -> ctypes.CDLL:
                 *_base_p_tail,
             ]
             library.fast_math_base_p_class_table_u64.restype = ctypes.c_int
+        if hasattr(library, "fast_math_fp_span_ranks_u64"):
+            _fp_span_tail = [
+                ctypes.POINTER(NativeFpSpanStats),
+                ctypes.POINTER(ctypes.c_char),
+                ctypes.c_size_t,
+            ]
+            library.fast_math_fp_span_ranks_u64.argtypes = [
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_uint32),
+                *_fp_span_tail,
+            ]
+            library.fast_math_fp_span_ranks_u64.restype = ctypes.c_int
+            library.fast_math_fp_point_span_u64.argtypes = [
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.POINTER(ctypes.c_uint8),
+                ctypes.POINTER(ctypes.c_uint8),
+                ctypes.POINTER(ctypes.c_uint32),
+                ctypes.POINTER(ctypes.c_uint64),
+                *_fp_span_tail,
+            ]
+            library.fast_math_fp_point_span_u64.restype = ctypes.c_int
         if hasattr(library, "fast_math_adaptive_area_f64"):
             library.fast_math_adaptive_area_f64.argtypes = [
                 ctypes.POINTER(ctypes.c_double),
@@ -1459,6 +1503,97 @@ def colex_visit_native(
     )
     _check(status, error)
     return newly_visited.view(np.bool_), stats
+
+
+def fp_span_ranks_native(
+    point_codes: NDArray[np.uint64],
+    span_offsets: NDArray[np.uint64],
+    prime: int,
+    width: int,
+) -> tuple[NDArray[np.uint32], NativeFpSpanStats]:
+    library = load_library()
+    if not hasattr(library, "fast_math_fp_span_ranks_u64"):
+        raise NativeUnavailable(
+            "fast-math was built without encoded point spans"
+        )
+    ranks = np.empty(len(span_offsets) - 1, dtype=np.uint32)
+    stats = NativeFpSpanStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_fp_span_ranks_u64(
+        _uint64_pointer(point_codes),
+        len(point_codes),
+        _uint64_pointer(span_offsets),
+        len(ranks),
+        int(prime),
+        int(width),
+        _uint32_pointer(ranks),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return ranks, stats
+
+
+def fp_point_span_native(
+    point_codes: NDArray[np.uint64],
+    query_codes: NDArray[np.uint64],
+    prime: int,
+    width: int,
+) -> tuple[
+    NDArray[np.uint64],
+    NDArray[np.uint32],
+    NDArray[np.uint64],
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+    NDArray[np.uint32],
+    NDArray[np.uint64],
+    NativeFpSpanStats,
+]:
+    library = load_library()
+    if not hasattr(library, "fast_math_fp_point_span_u64"):
+        raise NativeUnavailable(
+            "fast-math was built without encoded point spans"
+        )
+    pivot_indices = np.empty(width, dtype=np.uint64)
+    pivot_columns = np.empty(width, dtype=np.uint32)
+    basis_codes = np.empty(width, dtype=np.uint64)
+    independent = np.empty(len(point_codes), dtype=np.uint8)
+    members = np.empty(len(query_codes), dtype=np.uint8)
+    coordinates = np.empty((len(query_codes), width), dtype=np.uint32)
+    quotient_codes = np.empty(len(query_codes), dtype=np.uint64)
+    stats = NativeFpSpanStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_fp_point_span_u64(
+        _uint64_pointer(point_codes),
+        len(point_codes),
+        _uint64_pointer(query_codes),
+        len(query_codes),
+        int(prime),
+        int(width),
+        _uint64_pointer(pivot_indices),
+        _uint32_pointer(pivot_columns),
+        _uint64_pointer(basis_codes),
+        independent.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
+        members.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
+        _uint32_pointer(coordinates),
+        _uint64_pointer(quotient_codes),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    rank = int(stats.rank_sum)
+    return (
+        pivot_indices[:rank].copy(),
+        pivot_columns[:rank].copy(),
+        basis_codes[:rank].copy(),
+        independent.view(np.bool_),
+        members.view(np.bool_),
+        np.ascontiguousarray(coordinates[:, :rank]),
+        quotient_codes,
+        stats,
+    )
 
 
 def base_p_digits_native(

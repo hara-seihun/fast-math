@@ -71,6 +71,7 @@ set(FAST_MATH_CORE_SOURCES
   cpp/src/cnf.cpp
   cpp/src/colex.cpp
   cpp/src/digest.cpp
+  cpp/src/fp_spans.cpp
   cpp/src/graph64.cpp
   cpp/src/groups.cpp
   cpp/src/large_graph.cpp
@@ -168,6 +169,20 @@ if(BUILD_TESTING)
     COMMAND fast_math_sparse_rank_core_test
   )
 endif()
+
+add_executable(fast_math_fp_span_ranks_benchmark
+  benchmarks/benchmark_fp_span_ranks.cpp
+)
+target_compile_features(
+  fast_math_fp_span_ranks_benchmark
+  PRIVATE
+    cxx_std_20
+)
+target_link_libraries(
+  fast_math_fp_span_ranks_benchmark
+  PRIVATE
+    fast_math
+)
 
 add_executable(fast_math_sparse_rank_benchmark
   benchmarks/benchmark_sparse_rank.cpp
