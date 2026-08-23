@@ -5,7 +5,8 @@ import math
 import numpy as np
 import pytest
 
-from flint import fmpz
+flint = pytest.importorskip("flint", reason="python-flint is unavailable")
+fmpz = flint.fmpz
 
 from fast_math._native import native_available
 from fast_math.hip import hip_shift_gates_available
