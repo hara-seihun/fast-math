@@ -216,6 +216,15 @@ class NativeUnionStats(ctypes.Structure):
     ]
 
 
+class NativeColexStats(ctypes.Structure):
+    _fields_ = [
+        ("subset_count", ctypes.c_uint64),
+        ("binomial_evaluations", ctypes.c_uint64),
+        ("newly_visited", ctypes.c_uint64),
+        ("elapsed_seconds", ctypes.c_double),
+    ]
+
+
 class NativeAdaptiveStats(ctypes.Structure):
     _fields_ = [
         ("target_count", ctypes.c_uint64),
@@ -756,6 +765,40 @@ def load_library() -> ctypes.CDLL:
             library.fast_math_union_closed_family_masks_u64.restype = (
                 ctypes.c_int
             )
+        if hasattr(library, "fast_math_colex_rank_u64"):
+            _colex_tail = [
+                ctypes.POINTER(NativeColexStats),
+                ctypes.POINTER(ctypes.c_char),
+                ctypes.c_size_t,
+            ]
+            library.fast_math_colex_rank_u64.argtypes = [
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_uint64),
+                *_colex_tail,
+            ]
+            library.fast_math_colex_rank_u64.restype = ctypes.c_int
+            library.fast_math_colex_unrank_u64.argtypes = [
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_uint64),
+                *_colex_tail,
+            ]
+            library.fast_math_colex_unrank_u64.restype = ctypes.c_int
+            library.fast_math_colex_visit_u64.argtypes = [
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.POINTER(ctypes.c_uint64),
+                ctypes.c_size_t,
+                ctypes.POINTER(ctypes.c_uint8),
+                *_colex_tail,
+            ]
+            library.fast_math_colex_visit_u64.restype = ctypes.c_int
         if hasattr(library, "fast_math_base_p_digits_u64"):
             _u64p = ctypes.POINTER(ctypes.c_uint64)
             _u8p = ctypes.POINTER(ctypes.c_uint8)
@@ -1334,6 +1377,88 @@ def union_closed_family_masks_native(
         message = error.value.decode("utf-8", errors="replace")
         raise RuntimeError(f"fast-math native error {status}: {message}")
     return closed.view(np.bool_), stats
+
+
+def colex_rank_native(
+    subset_masks: NDArray[np.uint64],
+    element_count: int,
+) -> tuple[NDArray[np.uint64], NativeColexStats]:
+    library = load_library()
+    if not hasattr(library, "fast_math_colex_rank_u64"):
+        raise NativeUnavailable(
+            "fast-math was built without colex subset ranking"
+        )
+    ranks = np.empty(len(subset_masks), dtype=np.uint64)
+    stats = NativeColexStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_colex_rank_u64(
+        _uint64_pointer(subset_masks),
+        len(subset_masks),
+        element_count,
+        ranks.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return ranks, stats
+
+
+def colex_unrank_native(
+    ranks: NDArray[np.uint64],
+    element_count: int,
+    weight: int,
+) -> tuple[NDArray[np.uint64], NativeColexStats]:
+    library = load_library()
+    if not hasattr(library, "fast_math_colex_unrank_u64"):
+        raise NativeUnavailable(
+            "fast-math was built without colex subset ranking"
+        )
+    subset_masks = np.empty(len(ranks), dtype=np.uint64)
+    stats = NativeColexStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_colex_unrank_u64(
+        _uint64_pointer(ranks),
+        len(ranks),
+        element_count,
+        weight,
+        subset_masks.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return subset_masks, stats
+
+
+def colex_visit_native(
+    subset_masks: NDArray[np.uint64],
+    element_count: int,
+    weight: int,
+    visited_words: NDArray[np.uint64],
+) -> tuple[NDArray[np.bool_], NativeColexStats]:
+    library = load_library()
+    if not hasattr(library, "fast_math_colex_visit_u64"):
+        raise NativeUnavailable(
+            "fast-math was built without colex subset ranking"
+        )
+    newly_visited = np.empty(len(subset_masks), dtype=np.uint8)
+    stats = NativeColexStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_colex_visit_u64(
+        _uint64_pointer(subset_masks),
+        len(subset_masks),
+        element_count,
+        weight,
+        visited_words.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        len(visited_words),
+        newly_visited.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return newly_visited.view(np.bool_), stats
 
 
 def base_p_digits_native(

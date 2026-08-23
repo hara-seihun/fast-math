@@ -126,6 +126,7 @@ from .elliptic import (
     quartic_points,
 )
 from .union import union_closed_family_masks
+from .colex import colex_rank, colex_unrank, colex_visit
 from .base_p import (
     BasePBackend,
     BasePClasses,
@@ -349,6 +350,9 @@ __all__ = [
     "mestre_quartic",
     "quartic_points",
     "union_closed_family_masks",
+    "colex_rank",
+    "colex_unrank",
+    "colex_visit",
     "BasePBackend",
     "BasePClasses",
     "BasePClassTable",
