@@ -41,6 +41,7 @@ sources=(
   hip_cnf.hip
   hip_modular.hip
   hip_packing.hip
+  hip_shift_gates.hip
   hip_subset_action.hip
 )
 fingerprint=$(printf '%s\n' \
