@@ -67,6 +67,7 @@ if(PkgConfig_FOUND)
 endif()
 
 set(FAST_MATH_CORE_SOURCES
+  cpp/src/base_p.cpp
   cpp/src/cnf.cpp
   cpp/src/digest.cpp
   cpp/src/graph64.cpp

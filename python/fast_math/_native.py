@@ -200,6 +200,14 @@ class NativeEllipticStats(ctypes.Structure):
     ]
 
 
+class NativeBasePStats(ctypes.Structure):
+    _fields_ = [
+        ("element_count", ctypes.c_uint64),
+        ("class_count", ctypes.c_uint64),
+        ("elapsed_seconds", ctypes.c_double),
+    ]
+
+
 class NativeUnionStats(ctypes.Structure):
     _fields_ = [
         ("family_count", ctypes.c_uint64),
@@ -748,6 +756,62 @@ def load_library() -> ctypes.CDLL:
             library.fast_math_union_closed_family_masks_u64.restype = (
                 ctypes.c_int
             )
+        if hasattr(library, "fast_math_base_p_digits_u64"):
+            _u64p = ctypes.POINTER(ctypes.c_uint64)
+            _u8p = ctypes.POINTER(ctypes.c_uint8)
+            _u32p = ctypes.POINTER(ctypes.c_uint32)
+            _base_p_tail = [
+                ctypes.POINTER(NativeBasePStats),
+                ctypes.POINTER(ctypes.c_char),
+                ctypes.c_size_t,
+            ]
+            library.fast_math_base_p_digits_u64.argtypes = [
+                _u64p,
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                _u8p,
+                *_base_p_tail,
+            ]
+            library.fast_math_base_p_digits_u64.restype = ctypes.c_int
+            library.fast_math_base_p_codes_u64.argtypes = [
+                _u8p,
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                _u64p,
+                *_base_p_tail,
+            ]
+            library.fast_math_base_p_codes_u64.restype = ctypes.c_int
+            library.fast_math_base_p_negation_codes_u64.argtypes = [
+                _u64p,
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                _u64p,
+                *_base_p_tail,
+            ]
+            library.fast_math_base_p_negation_codes_u64.restype = ctypes.c_int
+            library.fast_math_base_p_scalar_normals_u64.argtypes = [
+                _u64p,
+                ctypes.c_size_t,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                _u64p,
+                *_base_p_tail,
+            ]
+            library.fast_math_base_p_scalar_normals_u64.restype = ctypes.c_int
+            library.fast_math_base_p_class_table_u64.argtypes = [
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                ctypes.c_uint32,
+                _u32p,
+                _u64p,
+                _u32p,
+                ctypes.c_size_t,
+                *_base_p_tail,
+            ]
+            library.fast_math_base_p_class_table_u64.restype = ctypes.c_int
         if hasattr(library, "fast_math_adaptive_area_f64"):
             library.fast_math_adaptive_area_f64.argtypes = [
                 ctypes.POINTER(ctypes.c_double),
@@ -1270,6 +1334,142 @@ def union_closed_family_masks_native(
         message = error.value.decode("utf-8", errors="replace")
         raise RuntimeError(f"fast-math native error {status}: {message}")
     return closed.view(np.bool_), stats
+
+
+def base_p_digits_native(
+    codes: NDArray[np.uint64],
+    prime: int,
+    width: int,
+) -> tuple[NDArray[np.uint8], NativeBasePStats]:
+    library = load_library()
+    if not hasattr(library, "fast_math_base_p_digits_u64"):
+        raise NativeUnavailable("fast-math was built without the base-p codec")
+    digits = np.empty((len(codes), int(width)), dtype=np.uint8)
+    stats = NativeBasePStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_base_p_digits_u64(
+        _uint64_pointer(codes),
+        len(codes),
+        int(prime),
+        int(width),
+        digits.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return digits, stats
+
+
+def base_p_codes_native(
+    digits: NDArray[np.uint8],
+    prime: int,
+    width: int,
+) -> tuple[NDArray[np.uint64], NativeBasePStats]:
+    library = load_library()
+    if not hasattr(library, "fast_math_base_p_codes_u64"):
+        raise NativeUnavailable("fast-math was built without the base-p codec")
+    codes = np.empty(len(digits), dtype=np.uint64)
+    stats = NativeBasePStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_base_p_codes_u64(
+        digits.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8)),
+        len(digits),
+        int(prime),
+        int(width),
+        codes.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return codes, stats
+
+
+def base_p_negation_codes_native(
+    codes: NDArray[np.uint64],
+    prime: int,
+    width: int,
+) -> tuple[NDArray[np.uint64], NativeBasePStats]:
+    library = load_library()
+    if not hasattr(library, "fast_math_base_p_negation_codes_u64"):
+        raise NativeUnavailable("fast-math was built without the base-p codec")
+    negated = np.empty(len(codes), dtype=np.uint64)
+    stats = NativeBasePStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_base_p_negation_codes_u64(
+        _uint64_pointer(codes),
+        len(codes),
+        int(prime),
+        int(width),
+        negated.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return negated, stats
+
+
+def base_p_scalar_normals_native(
+    codes: NDArray[np.uint64],
+    prime: int,
+    width: int,
+) -> tuple[NDArray[np.uint64], NativeBasePStats]:
+    library = load_library()
+    if not hasattr(library, "fast_math_base_p_scalar_normals_u64"):
+        raise NativeUnavailable("fast-math was built without the base-p codec")
+    normals = np.empty(len(codes), dtype=np.uint64)
+    stats = NativeBasePStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_base_p_scalar_normals_u64(
+        _uint64_pointer(codes),
+        len(codes),
+        int(prime),
+        int(width),
+        normals.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return normals, stats
+
+
+def base_p_class_table_native(
+    prime: int,
+    width: int,
+    class_kind: int,
+    space_size: int,
+    representative_capacity: int,
+) -> tuple[NDArray[np.uint32], NDArray[np.uint64], NDArray[np.uint32], NativeBasePStats]:
+    library = load_library()
+    if not hasattr(library, "fast_math_base_p_class_table_u64"):
+        raise NativeUnavailable("fast-math was built without the base-p codec")
+    class_ids = np.empty(space_size, dtype=np.uint32)
+    representatives = np.empty(representative_capacity, dtype=np.uint64)
+    class_counts = np.empty(representative_capacity, dtype=np.uint32)
+    stats = NativeBasePStats()
+    error = ctypes.create_string_buffer(1024)
+    status = library.fast_math_base_p_class_table_u64(
+        int(prime),
+        int(width),
+        int(class_kind),
+        class_ids.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        representatives.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        class_counts.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        representative_capacity,
+        ctypes.byref(stats),
+        error,
+        len(error),
+    )
+    _check(status, error)
+    return (
+        class_ids,
+        representatives[: int(stats.class_count)],
+        class_counts[: int(stats.class_count)],
+        stats,
+    )
 
 
 def graph_induced_profile_stack_native(

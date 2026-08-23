@@ -20,6 +20,9 @@ hip-test: build hip
 hip-benchmark: hip
 	env PYTHONPATH=python FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) benchmarks/benchmark_hip_affine.py --output benchmarks/results/hip-affine-local.json
 
+base-p: build
+	env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_base_p.py --output benchmarks/results/base-p-codec-local.json
+
 packing: build hip
 	env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" FAST_MATH_HIP_LIBRARY="$(CURDIR)/build/libfast_math_hip.so" $(PYTHON) benchmarks/benchmark_square_packing.py --threads 8 --output benchmarks/results/square-packing-local.json
 
