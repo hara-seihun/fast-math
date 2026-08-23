@@ -70,6 +70,7 @@ set(FAST_MATH_CORE_SOURCES
   cpp/src/base_p.cpp
   cpp/src/cnf.cpp
   cpp/src/colex.cpp
+  cpp/src/cyclic_profiles.cpp
   cpp/src/digest.cpp
   cpp/src/fp_spans.cpp
   cpp/src/graph64.cpp
@@ -183,6 +184,20 @@ target_compile_features(
 )
 target_link_libraries(
   fast_math_planar_collinearity_benchmark
+  PRIVATE
+    fast_math
+)
+
+add_executable(fast_math_cyclic_profiles_benchmark
+  benchmarks/benchmark_cyclic_profiles.cpp
+)
+target_compile_features(
+  fast_math_cyclic_profiles_benchmark
+  PRIVATE
+    cxx_std_20
+)
+target_link_libraries(
+  fast_math_cyclic_profiles_benchmark
   PRIVATE
     fast_math
 )

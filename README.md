@@ -57,6 +57,9 @@ the exact modular/CNF certification-batch contracts.
 - `fast_math.planar`: exact collinear-triple totals, per-point conflict
   degrees, and ragged add/delete edit scores for int32 planar point sets,
   across executable reference and deterministic threaded native backends.
+- `fast_math.cyclic`: batched exact periodic mask-intersection and signed
+  autocorrelation profiles for binary cycles packed into uint64 words, across
+  executable reference and deterministic threaded native backends.
 - `fast_math.modular_linear`: canonical RREF, rank, row transforms, right and
   left nullspaces, inverses, and retained fixed-matrix solve batches. Native and
   HIP backends return either an exact solution or a left-null inconsistency
@@ -230,6 +233,19 @@ outputs independent of thread count. A positive `score_cutoff` enables the
 search-loop form: flagged edits stop at the cutoff, while unflagged scores
 remain exact. The executable reference rebuilds every edited set and evaluates
 its triple definition directly.
+
+## Packed cyclic correlation contract
+
+`cyclic_correlation_profiles(masks, bit_width)` treats bit positions as a
+cycle of length 1 through 64 and rejects masks with set bits outside that
+width. Its mask-major output columns are lags `0, ..., bit_width - 1`:
+`intersection_counts[i, k]` is exactly
+`popcount(mask & rotate_left(mask, k))`. Mapping set bits to `-1` and clear
+bits to `+1` gives the parallel `signed_correlations` array. The native route
+computes one member of each opposite-lag pair and mirrors it, preserving the
+exact periodic symmetry; static row partitioning makes complete outputs
+independent of thread count. The executable reference evaluates the periodic
+definition directly at every lag.
 
 ## Encoded point span contract
 

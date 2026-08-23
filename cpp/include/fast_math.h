@@ -138,6 +138,15 @@ struct fast_math_planar_collinearity_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_cyclic_profile_stats {
+  std::uint64_t mask_count;
+  std::uint64_t popcount_evaluations;
+  std::uint32_t bit_width;
+  std::uint32_t lag_count;
+  std::uint32_t worker_count;
+  double elapsed_seconds;
+};
+
 struct fast_math_elliptic_stats {
   std::uint64_t prime_count;
   std::uint64_t parameter_count;
@@ -968,6 +977,21 @@ FAST_MATH_API int fast_math_planar_collinearity_edits_i32(
     std::int64_t* edit_deltas,
     std::uint8_t* cutoff_reached,
     fast_math_planar_collinearity_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+// Periodic intersection and {+1,-1} autocorrelation profiles for packed
+// masks. Outputs are mask-major rows with lags 0..bit_width-1. Correlation
+// uses -1 at set bits and +1 at clear bits. Opposite lags are filled from one
+// exact popcount because periodic autocorrelation is symmetric.
+FAST_MATH_API int fast_math_cyclic_correlation_profiles_u64(
+    const std::uint64_t* masks,
+    std::size_t mask_count,
+    std::uint32_t bit_width,
+    std::uint32_t thread_count,
+    std::uint8_t* intersection_counts,
+    std::int16_t* signed_correlations,
+    fast_math_cyclic_profile_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 
