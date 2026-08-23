@@ -47,6 +47,7 @@ representative benchmark shows material time or memory cost.
 | Colex subset ranking with orbit marking | The orbit-enumeration scouts that rank k-subsets combinadically to mark visited orbits during enumeration (16 programs in the 2026-08-21 scan) | Batched colexicographical rank/unrank over uint64 element masks for `element_count <= 64`, plus fixed-weight visit marking: test-and-set of each subset's rank in a caller-owned uint64 visited bitmap returning a per-subset newly-visited flag, rejecting out-of-range masks and out-of-class ranks instead of wrapping. Reference and native agree bitwise; native route is single-threaded so output is thread-stable. On gmktec, batches of 131,072 random weight-6 subsets over 48 elements fell from the hand-written loop to native: rank + bitmap test-and-set 0.222 s -> 0.00076 s median (293x), rank only 0.145 s -> 0.00040 s median (361x), flags and bitmaps byte-identical between backends. |
 | Encoded finite-field point spans | Component scouts and GL matchers that hand-roll mod-p elimination over integer-coded points and repeat modular inversion (26 + 23 programs in the 2026-08-23 scan) | Batched ragged rank over encoded `F_p^width` point sets (`p <= 251`, `width <= 16`, uint64 codes) and one-span canonical RREF with pivot columns, generating input indices, independence and membership flags, query coefficients against the basis, and canonical quotient residual codes satisfying `q = coordinates @ basis + quotient`. Composite fields, malformed ragged offsets, and out-of-space codes fail instead of wrapping. Reference and native agree on complete outputs; the native route is single-threaded so results are thread-stable. On gmktec, 200,000 ragged spans of eight encoded `F_5^6` points ranked at 0.0514 s median against the retained `f5_components.cpp::rankbasis` loop at 0.0916 s (1.78x) with identical rank arrays (sum 1,198,021); the executable reference backend trails native 110x on 20,000-span ragged batches and 42x on F_251^6 membership/coordinates. |
 | Digit-tuple orbits under a permutation group | Census programs that transform base-m codes under generator arrays and deduplicate the images (24 programs in the 2026-08-21 scan) | Mixed-radix tuple orbits (`base**width` codes bounded at 2^24) under positional image-array permutation groups closed internally to 200000 elements: numeric-minimum canonical codes with is-canonical flags, dense orbit partitions mirroring `MaskOrbitPartition`, and whole-space orbit structure validated against the Burnside average of `base**cycles(g)`. Out-of-range codes and non-permutation generator rows fail instead of wrapping; the reference closure carries the same size cap so both backends reject identically. Reference and native agree bitwise; the native route is single-threaded. On gmktec, dihedral D_8 canonicalization of 200,000 random Z_3^8 codes runs 0.041 s native vs 1.671 s for the hand-written loop (41.7x), and the full Z_2^10 space returns the 78 binary bracelets with Burnside agreement on both backends. |
+| Stable exact higher-order WL | Cayley-graph and rooted-coloring scouts that previously carried six separate 3-WL/4-WL tuple loops | Stable exact 3-WL and 4-WL over square Boolean or packed uint64 adjacency rows through order 512, with C-order lexicographic tuple indexing, complete collision-checked signatures, canonical signature-ordered colors and histograms, and hard tuple/signature storage limits. Native and executable reference outputs agree exactly and remain canonical under vertex relabeling. On the retained Q8 x C9 order-72 graph, native 3-WL takes 1.341 s against 2.433 s for the optimized scratch loop (1.81x) with the same 451-color partition of 373,248 triples; representative Python reference workloads improve 24.7x. |
 
 ## In progress
 
@@ -510,23 +511,23 @@ batch-first and make output allocation explicit.
 
 ### Recurring hand-written kernels
 
-Scanned: 2026-08-21.
+Scanned: 2026-08-23.
 
 `tools/duplication-scan` is what produced this table; rerun it over the current
 scratch trees rather than trusting these counts a month from now. The
 `fast-math-kernel` lane's demand probe reads the date above and the rows below,
 so a rescan is what refills the queue and a merge is what drains it.
 
-An alpha-normalized NCD scan of the fleet's scratch trees on 2026-08-21 found
-190 hand-written C++ programs, none of which link this library, falling into ten
-structural families. The five below are the ones whose contract is mathematical
-rather than campaign-specific. Counts are files, against 1,394 scratch units in
-total; 244 of the Python ones already import `fast_math`, while the native ones
-import nothing.
+The alpha-normalized NCD scan now sees 326 hand-written C++ programs under the
+current math scratch tree, with 648 close pairs in 28 clusters. The previously
+queued tuple-orbit and higher-order-WL clusters are shipped. After removing
+those and campaign-specific copies, two newly recurring families have stable
+mathematical contracts.
 
 | Candidate | Evidence | Contract |
 | --- | --- | --- |
-| Digit-tuple orbits under a permutation group | 24 programs transform base-m codes under generator arrays and deduplicate the images | Orbit representatives, orbit ids, and Burnside validation for `Z_m^k` tuples: the tuple analogue of the shipped packed-subset orbits |
+| Packed cyclic correlation profiles | 19 qLP64 programs rotate packed masks and recompute popcount intersections or signed periodic autocorrelations at every lag | Batched exact periodic intersection counts and derived `{+1,-1}` autocorrelation profiles for uint64 masks with a declared cycle length, in deterministic lag order and without route-local packed-key encodings |
+| Incremental planar collinearity scores | 16 no-three-in-line extension and repair programs repeat determinant tests, normalized-line hashing, and full rescoring after small point edits | Exact collinear-triple totals, per-point conflict degrees, and batched add/delete/swap score deltas for integer planar point sets, with overflow-safe determinants and an optional early cutoff |
 
 A candidate leaves this table with a benchmark against the program it replaces,
 not on its count alone.
