@@ -65,10 +65,12 @@ def _space_size(prime: int, width: int) -> int:
 
 def _prepare_codes(codes: ArrayLike, space_size: int) -> NDArray[np.uint64]:
     array = np.asarray(codes)
-    if array.dtype.kind not in {"i", "u", "O"}:
-        raise ValueError("codes must be integers")
     if array.ndim != 1:
         raise ValueError("codes must be one-dimensional")
+    if array.size == 0:
+        return np.empty(0, dtype=np.uint64)
+    if array.dtype.kind not in {"i", "u", "O"}:
+        raise ValueError("codes must be integers")
     if array.dtype.kind == "O":
         maximum = np.iinfo(np.uint64).max
         for value in array:

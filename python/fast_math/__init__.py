@@ -137,6 +137,7 @@ from .base_p import (
     base_p_negation_codes,
     base_p_scalar_normals,
 )
+from .fp_spans import FpPointSpan, FpSpanBackend, fp_point_span, fp_span_ranks
 from .adaptive import (
     AdaptiveAreaBatch,
     AdaptiveBackend,
@@ -361,6 +362,10 @@ __all__ = [
     "base_p_digits",
     "base_p_negation_codes",
     "base_p_scalar_normals",
+    "FpPointSpan",
+    "FpSpanBackend",
+    "fp_point_span",
+    "fp_span_ranks",
     "AdaptiveAreaBatch",
     "AdaptiveBackend",
     "ExactAdaptiveAreaBatch",
