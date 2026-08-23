@@ -16,6 +16,12 @@ If you wrote the same loop by hand twice, it is a kernel. `tools/duplication-sca
 '*.cpp' ~/work` says which loops a whole fleet wrote twice; `TARGETS.md` records
 what it found last.
 
+Before you write one, ask whether it is already here: `fast-math --find csr`,
+`fast-math --index`, `fast_math.find("orbit", "subset")`. A branch named
+`kernel/<something>` is one the `fast-math-kernel` lane's demand probe counts as
+work already in flight, so name yours that way when you take a row out of the
+recurring table.
+
 ## What a reviewable PR carries
 
 - The kernel, behind the existing C ABI and Python surface.

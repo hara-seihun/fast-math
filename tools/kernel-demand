@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Demand probe for the pi-orchestrator `fast-math-kernel` lane: prints how many
+# kernels the fleet keeps hand-writing and nobody has landed yet.
+#
+# One unit per row of the "Recurring hand-written kernels" table in TARGETS.md,
+# less the open pull requests already answering one (branch `kernel/...`), plus
+# one when the scan behind that table has gone stale. A merge removes a row and
+# a rescan adds rows back, so the queue drains and refills by itself.
+#
+# Zero means the fleet is not repeating itself, which is the state this lane
+# exists to reach.
+set -euo pipefail
+
+targets=${1:-/srv/pi/fast-math/current/TARGETS.md}
+stale_days=14
+
+rows=0
+scanned=
+if [[ -r $targets ]]; then
+  rows=$(awk '
+    /^### Recurring hand-written kernels/ { section = 1; next }
+    section && /^#/                       { exit }
+    section && /^\| /                     { rows++ }
+    END                                   { count = rows > 2 ? rows - 2 : 0; print count }
+  ' "$targets")
+  scanned=$(awk '
+    /^### Recurring hand-written kernels/ { section = 1 }
+    section && /^Scanned: / { print substr($2, 1, 10); exit }
+  ' "$targets")
+fi
+
+open=$(gh pr list --repo hara-seihun/fast-math --state open --limit 50 \
+  --json headRefName,isDraft \
+  --jq '[.[] | select(.isDraft | not) | select(.headRefName | startswith("kernel/"))] | length')
+
+stale=1
+if [[ -n $scanned ]]; then
+  age=$(( ( $(date +%s) - $(date -d "${scanned%.}" +%s) ) / 86400 ))
+  (( age > stale_days )) || stale=0
+fi
+
+waiting=$(( rows - open ))
+(( waiting > 0 )) || waiting=0
+echo $(( waiting + stale ))
