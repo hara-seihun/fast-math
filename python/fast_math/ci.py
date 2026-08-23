@@ -18,6 +18,7 @@ from ._ci_native import (
     derivative_orbits_native,
     fixed_weight_subset_orbits_native,
     expand_atom_subsets_native,
+    graph_wlk_refine_native,
     intersection_numbers_native,
     subset_orbits_native,
     wl2_refine_native,
@@ -171,6 +172,57 @@ class WL2Refinement:
             np.argwhere(self.relations == relation).astype(np.uint32)
             for relation in range(self.relation_count)
         )
+
+
+@dataclass(frozen=True)
+class WLKRefinement:
+    """Stable 3-WL or 4-WL colors in lexicographic tuple order."""
+
+    colors: NDArray[np.uint32]
+    color_count: int
+    color_sizes: NDArray[np.uint64]
+    dimension: int
+    vertex_count: int
+    iterations: int
+    elapsed_seconds: float
+    backend: str
+
+    def tuple_index(self, vertices: Sequence[int]) -> int:
+        """Return the stable flat index of one ordered vertex tuple."""
+        values = tuple(vertices)
+        if len(values) != self.dimension:
+            raise ValueError(
+                f"expected {self.dimension} tuple coordinates"
+            )
+        result = 0
+        for vertex in values:
+            if (
+                not isinstance(vertex, Integral)
+                or isinstance(vertex, bool)
+                or not 0 <= vertex < self.vertex_count
+            ):
+                raise ValueError("tuple vertex is outside the graph")
+            result = result * self.vertex_count + int(vertex)
+        return result
+
+    def tuple_at(self, index: int) -> tuple[int, ...]:
+        """Decode a flat tuple index using the public lexicographic order."""
+        if (
+            not isinstance(index, Integral)
+            or isinstance(index, bool)
+            or not 0 <= index < self.colors.size
+        ):
+            raise ValueError("tuple index is outside the coloring")
+        remaining = int(index)
+        vertices = [0] * self.dimension
+        for coordinate in range(self.dimension - 1, -1, -1):
+            vertices[coordinate] = remaining % self.vertex_count
+            remaining //= self.vertex_count
+        return tuple(vertices)
+
+    def color(self, vertices: Sequence[int]) -> int:
+        """Return the stable color of one ordered vertex tuple."""
+        return int(self.colors.ravel()[self.tuple_index(vertices)])
 
 
 @dataclass(frozen=True)
@@ -1564,31 +1616,59 @@ def coherent_configuration(
     )
 
 
-def _graph_initial_relations(
+def _prepare_graph_for_wl(
     adjacency_words: ArrayLike,
-) -> NDArray[np.uint32]:
+) -> tuple[NDArray[np.uint32], NDArray[np.uint64]]:
     adjacency = np.asarray(adjacency_words)
-    if adjacency.ndim == 2 and adjacency.shape[0] == adjacency.shape[1]:
+    if adjacency.ndim != 2:
+        raise ValueError("adjacency must be a square matrix or packed rows")
+    vertex_count = len(adjacency)
+    if not 1 <= vertex_count <= 512:
+        raise ValueError("graph order must be between one and 512")
+    if adjacency.shape[1] == vertex_count:
         if not np.all((adjacency == 0) | (adjacency == 1)):
             raise ValueError("adjacency matrix must be Boolean")
         present = np.asarray(adjacency, dtype=np.bool_)
-    elif adjacency.ndim == 2:
-        vertex_count, word_count = adjacency.shape
+        word_count = (vertex_count + 63) // 64
+        packed = np.zeros((vertex_count, word_count), dtype=np.uint64)
+        for right in range(vertex_count):
+            packed[:, right // 64] |= (
+                present[:, right].astype(np.uint64)
+                << np.uint64(right % 64)
+            )
+    else:
+        word_count = adjacency.shape[1]
         if word_count != (vertex_count + 63) // 64:
             raise ValueError("adjacency words have an invalid packed shape")
+        if not np.issubdtype(adjacency.dtype, np.integer):
+            raise ValueError("adjacency words must contain integers")
+        if np.issubdtype(adjacency.dtype, np.signedinteger) and np.any(
+            adjacency < 0
+        ):
+            raise ValueError("adjacency words must be nonnegative")
         packed = np.ascontiguousarray(adjacency, dtype=np.uint64)
+        final_bits = vertex_count % 64
+        if final_bits and np.any(
+            packed[:, -1] >> np.uint64(final_bits)
+        ):
+            raise ValueError("adjacency contains an out-of-range vertex")
         present = np.zeros((vertex_count, vertex_count), dtype=np.bool_)
         for right in range(vertex_count):
             present[:, right] = (
                 packed[:, right // 64] >> np.uint64(right % 64)
             ) & np.uint64(1)
-    else:
-        raise ValueError("adjacency must be a square matrix or packed rows")
     if np.any(np.diag(present)):
         raise ValueError("graphs must be loopless")
     relations = np.full(present.shape, 2, dtype=np.uint32)
     relations[present] = 1
     np.fill_diagonal(relations, 0)
+    return relations, packed
+
+
+def _graph_initial_relations(
+    adjacency_words: ArrayLike,
+) -> NDArray[np.uint32]:
+    relations, _ = _prepare_graph_for_wl(adjacency_words)
     return relations
 
 
@@ -1600,6 +1680,201 @@ def graph_wl2_refinement(
     """Run exact stable 2-WL on one loopless graph."""
     return wl2_refinement(
         _graph_initial_relations(adjacency_words),
+        backend=backend,
+    )
+
+
+def _decode_wl_tuple(
+    index: int,
+    vertex_count: int,
+    dimension: int,
+) -> list[int]:
+    vertices = [0] * dimension
+    for coordinate in range(dimension - 1, -1, -1):
+        vertices[coordinate] = index % vertex_count
+        index //= vertex_count
+    return vertices
+
+
+def _wlk_reference(
+    relations: NDArray[np.uint32],
+    dimension: int,
+) -> tuple[NDArray[np.uint32], NDArray[np.uint64], int]:
+    vertex_count = len(relations)
+    tuple_count = vertex_count**dimension
+    colors = np.empty(tuple_count, dtype=np.uint32)
+    atomic_codes = []
+    for tuple_index in range(tuple_count):
+        vertices = _decode_wl_tuple(
+            tuple_index, vertex_count, dimension
+        )
+        code = 0
+        for left in range(dimension):
+            for right in range(dimension):
+                if left != right:
+                    code = (
+                        3 * code
+                        + int(relations[vertices[left], vertices[right]])
+                    )
+        atomic_codes.append(code)
+    _, colors[:] = np.unique(atomic_codes, return_inverse=True)
+
+    strides = [
+        vertex_count ** (dimension - coordinate - 1)
+        for coordinate in range(dimension)
+    ]
+    iterations = 0
+    while True:
+        classes: dict[tuple[int, ...], int] = {}
+        representatives: list[tuple[int, ...]] = []
+        signature_entries = 0
+        refined = np.empty(tuple_count, dtype=np.uint32)
+        for tuple_index in range(tuple_count):
+            vertices = _decode_wl_tuple(
+                tuple_index, vertex_count, dimension
+            )
+            signature = [int(colors[tuple_index])]
+            for coordinate in range(dimension):
+                fixed_index = (
+                    tuple_index - vertices[coordinate] * strides[coordinate]
+                )
+                counts = Counter(
+                    int(colors[fixed_index + replacement * strides[coordinate]])
+                    for replacement in range(vertex_count)
+                )
+                signature.append(len(counts))
+                for color, count in sorted(counts.items()):
+                    signature.extend((color, count))
+            key = tuple(signature)
+            color = classes.get(key)
+            if color is None:
+                signature_entries += len(key)
+                if signature_entries > 64_000_000:
+                    raise ValueError(
+                        "k-WL exact signature storage exceeds 256 MB"
+                    )
+                color = len(representatives)
+                classes[key] = color
+                representatives.append(key)
+            refined[tuple_index] = color
+        order = sorted(
+            range(len(representatives)),
+            key=representatives.__getitem__,
+        )
+        mapping = np.empty(len(order), dtype=np.uint32)
+        mapping[order] = np.arange(len(order), dtype=np.uint32)
+        refined = mapping[refined]
+        iterations += 1
+        if np.array_equal(refined, colors):
+            color_sizes = np.bincount(refined).astype(np.uint64)
+            return (
+                refined.reshape((vertex_count,) * dimension),
+                color_sizes,
+                iterations,
+            )
+        colors = refined
+
+
+def graph_wlk_refinement(
+    adjacency_words: ArrayLike,
+    dimension: int,
+    *,
+    max_tuples: int = 10_000_000,
+    backend: CIBackend = "auto",
+) -> WLKRefinement:
+    """Run stable exact 3-WL or 4-WL on one loopless graph.
+
+    Colors use C-order lexicographic indexing on ``G^dimension``. Each
+    refinement signature contains the old color followed by one sorted
+    replacement-color multiset per coordinate. Color IDs are assigned by
+    lexicographically sorting complete signatures, never by hashes alone.
+    The operation is capped at ten million tuples and 256 MB of retained exact
+    signatures so hostile or accidental requests fail before unbounded growth.
+    """
+    _validate_backend(backend)
+    if (
+        not isinstance(dimension, Integral)
+        or isinstance(dimension, bool)
+        or dimension not in {3, 4}
+    ):
+        raise ValueError("dimension must be three or four")
+    if (
+        not isinstance(max_tuples, Integral)
+        or isinstance(max_tuples, bool)
+        or not 1 <= max_tuples <= 10_000_000
+    ):
+        raise ValueError("max_tuples must be between one and 10,000,000")
+    relations, packed = _prepare_graph_for_wl(adjacency_words)
+    vertex_count = len(relations)
+    tuple_count = vertex_count ** int(dimension)
+    if tuple_count > max_tuples:
+        raise ValueError(
+            f"{dimension}-WL needs {tuple_count} tuples, above max_tuples"
+        )
+
+    started = perf_counter()
+    if backend != "reference":
+        try:
+            colors, color_sizes, stats = graph_wlk_refine_native(
+                packed, int(dimension)
+            )
+        except (NativeUnavailable, OSError, AttributeError):
+            if backend == "native":
+                raise
+        else:
+            return WLKRefinement(
+                colors=colors,
+                color_count=int(stats.class_count),
+                color_sizes=color_sizes,
+                dimension=int(dimension),
+                vertex_count=vertex_count,
+                iterations=int(stats.iteration_count),
+                elapsed_seconds=float(stats.elapsed_seconds),
+                backend="native",
+            )
+    if backend == "native":
+        raise NativeUnavailable("fast-math native library is unavailable")
+    colors, color_sizes, iterations = _wlk_reference(
+        relations, int(dimension)
+    )
+    return WLKRefinement(
+        colors=colors,
+        color_count=len(color_sizes),
+        color_sizes=color_sizes,
+        dimension=int(dimension),
+        vertex_count=vertex_count,
+        iterations=iterations,
+        elapsed_seconds=perf_counter() - started,
+        backend="reference",
+    )
+
+
+def graph_wl3_refinement(
+    adjacency_words: ArrayLike,
+    *,
+    max_tuples: int = 10_000_000,
+    backend: CIBackend = "auto",
+) -> WLKRefinement:
+    """Run stable exact 3-WL with lexicographic ``G^3`` indexing."""
+    return graph_wlk_refinement(
+        adjacency_words,
+        3,
+        max_tuples=max_tuples,
+        backend=backend,
+    )
+
+
+def graph_wl4_refinement(
+    adjacency_words: ArrayLike,
+    *,
+    max_tuples: int = 10_000_000,
+    backend: CIBackend = "auto",
+) -> WLKRefinement:
+    """Run stable exact 4-WL with lexicographic ``G^4`` indexing."""
+    return graph_wlk_refinement(
+        adjacency_words,
+        4,
+        max_tuples=max_tuples,
         backend=backend,
     )
 
@@ -1630,6 +1905,7 @@ __all__ = [
     "PermutationDoubleCosetPartition",
     "SubsetOrbitPartition",
     "WL2Refinement",
+    "WLKRefinement",
     "atom_subsets_to_element_words",
     "compose_u64_mask_luts",
     "canonicalize_cayley_graphs",
@@ -1645,6 +1921,9 @@ __all__ = [
     "generalized_dihedral_group",
     "graph_coherent_configuration",
     "graph_wl2_refinement",
+    "graph_wl3_refinement",
+    "graph_wl4_refinement",
+    "graph_wlk_refinement",
     "induced_atom_action",
     "induced_atom_generators",
     "inverse_closed_atoms",

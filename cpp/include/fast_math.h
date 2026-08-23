@@ -495,6 +495,22 @@ FAST_MATH_API int fast_math_wl2_refine_u32(
     char* error_message,
     std::size_t error_message_size);
 
+// Stable 3-WL or 4-WL on a loopless graph with packed uint64 adjacency rows.
+// Tuple colors use lexicographic base-vertex_count indexing. The first
+// stats->class_count color_sizes entries are the canonical color histogram.
+// Requests are capped at 10,000,000 tuples and 256 MB of exact signatures.
+FAST_MATH_API int fast_math_graph_wlk_refine_u64(
+    const std::uint64_t* adjacency_words,
+    std::uint32_t vertex_count,
+    std::uint32_t word_count,
+    std::uint32_t dimension,
+    std::size_t tuple_capacity,
+    std::uint32_t* stable_colors,
+    std::uint64_t* color_sizes,
+    fast_math_ci_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
 FAST_MATH_API int fast_math_intersection_numbers_u64(
     const std::uint32_t* relations,
     std::uint32_t vertex_count,

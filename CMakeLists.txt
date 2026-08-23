@@ -99,6 +99,7 @@ set(FAST_MATH_LAMBDA_SOURCES
   cpp/src/inverse.cpp
   cpp/src/moments.cpp
   cpp/src/two_level.cpp
+  cpp/src/wlk.cpp
 )
 
 add_library(fast_math SHARED
@@ -181,6 +182,20 @@ target_compile_features(
 )
 target_link_libraries(
   fast_math_fp_span_ranks_benchmark
+  PRIVATE
+    fast_math
+)
+
+add_executable(fast_math_wlk_benchmark
+  benchmarks/benchmark_wlk.cpp
+)
+target_compile_features(
+  fast_math_wlk_benchmark
+  PRIVATE
+    cxx_std_20
+)
+target_link_libraries(
+  fast_math_wlk_benchmark
   PRIVATE
     fast_math
 )

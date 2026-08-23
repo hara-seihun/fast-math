@@ -527,7 +527,6 @@ import nothing.
 | Candidate | Evidence | Contract |
 | --- | --- | --- |
 | Digit-tuple orbits under a permutation group | 24 programs transform base-m codes under generator arrays and deduplicate the images | Orbit representatives, orbit ids, and Burnside validation for `Z_m^k` tuples: the tuple analogue of the shipped packed-subset orbits |
-| Higher-order WL | one six-file cluster implements 3-WL and 4-WL with hand-written signature hashing against the shipped 2-WL | Stable k-WL colorings with exact signature canonicalization for k = 3 and 4 |
 
 A candidate leaves this table with a benchmark against the program it replaces,
 not on its count alone.
