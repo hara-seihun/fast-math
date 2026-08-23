@@ -161,6 +161,42 @@ def test_all_generators_one_swap_closure(backend: str = "native") -> None:
     assert stats.group_size == 2
 
 
+@pytest.mark.parametrize("width", [4, 5, 8, 12, 17, 24, 32])
+def test_multigenerator_closures_survive_vector_growth(width: int) -> None:
+    generators = np.asarray(
+        [
+            cyclic_shift(width),
+            np.arange(width - 1, -1, -1, dtype=np.uint32),
+        ],
+        dtype=np.uint32,
+    )
+    random = np.random.default_rng(8100 + width)
+    codes = random.integers(0, 2**width, size=97, dtype=np.uint64)
+    reference = tuple_orbit_canonicalize(
+        generators, 2, width, codes, backend="reference"
+    )
+    native = tuple_orbit_canonicalize(
+        generators, 2, width, codes, backend="native"
+    )
+    np.testing.assert_array_equal(native[0], reference[0])
+    np.testing.assert_array_equal(native[1], reference[1])
+
+
+def test_oversized_symmetric_group_fails_without_memory_corruption() -> None:
+    width = 12
+    generators = np.asarray(
+        [
+            list(range(1, width)) + [0],
+            [1, 0] + list(range(2, width)),
+        ],
+        dtype=np.uint32,
+    )
+    with pytest.raises(ValueError, match="200000-element limit"):
+        tuple_orbit_canonicalize(
+            generators, 2, width, [0], backend="native"
+        )
+
+
 def test_native_stats_and_flags() -> None:
     width, base = 4, 2
     generators = np.array([cyclic_shift(width)], dtype=np.uint32)

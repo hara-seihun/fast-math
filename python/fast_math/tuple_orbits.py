@@ -18,6 +18,7 @@ from ._native import (
 TupleOrbitBackend = Literal["auto", "native", "reference"]
 
 _MAX_SPACE_SIZE = 1 << 24
+_MAX_GROUP_SIZE = 200_000
 
 
 @dataclass(frozen=True)
@@ -112,19 +113,24 @@ def _reference_group(
     identity = tuple(range(width))
     group = {identity}
     queue = [identity]
+
+    def push(permutation: tuple[int, ...]) -> None:
+        if permutation in group:
+            return
+        group.add(permutation)
+        if len(group) > _MAX_GROUP_SIZE:
+            raise ValueError(
+                "generated group exceeds the 200000-element limit"
+            )
+        queue.append(permutation)
+
     for row in generators:
-        permutation = tuple(int(v) for v in row)
-        if permutation not in group:
-            group.add(permutation)
-            queue.append(permutation)
+        push(tuple(int(v) for v in row))
     while queue:
         current = queue.pop()
         for row in generators:
             generator = tuple(int(v) for v in row)
-            product = tuple(current[generator[i]] for i in range(width))
-            if product not in group:
-                group.add(product)
-                queue.append(product)
+            push(tuple(current[generator[i]] for i in range(width)))
     return list(group)
 
 
@@ -177,6 +183,14 @@ def _canonicalize_reference(
     return canonical, is_canonical
 
 
+def _translate_native_group_limit(error: RuntimeError) -> None:
+    if "generated group exceeds the 200000-element limit" in str(error):
+        raise ValueError(
+            "generated group exceeds the 200000-element limit"
+        ) from error
+    raise error
+
+
 def _dispatch_canonicalize(
     generators: NDArray[np.uint32],
     base: int,
@@ -192,6 +206,8 @@ def _dispatch_canonicalize(
                 )
             )
             return canonical, is_canonical, int(stats.group_size), "native"
+        except RuntimeError as error:
+            _translate_native_group_limit(error)
         except (NativeUnavailable, OSError):
             if backend == "native":
                 raise
@@ -303,6 +319,8 @@ def tuple_orbit_space(
                 bool(stats.burnside_valid),
                 "native",
             )
+        except RuntimeError as error:
+            _translate_native_group_limit(error)
         except (NativeUnavailable, OSError):
             if backend == "native":
                 raise

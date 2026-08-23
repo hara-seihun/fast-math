@@ -112,13 +112,14 @@ struct PermutationGroup {
     for (std::size_t g = 0; g < generator_count; ++g) {
       push(generators + g * degree);
     }
+    std::vector<std::uint32_t> current(degree);
+    std::vector<std::uint32_t> product(degree);
     for (std::size_t cursor = 0; cursor < queue.size(); cursor += degree) {
-      const std::uint32_t* current = queue.data() + cursor;
+      std::copy_n(queue.data() + cursor, degree, current.data());
       for (std::size_t g = 0; g < generator_count; ++g) {
         const std::uint32_t* generator = generators + g * degree;
-        std::vector<std::uint32_t> product(degree);
         for (std::uint32_t i = 0; i < degree; ++i) {
-          product[i] = current[generator[i]];  // current composed after generator
+          product[i] = current[generator[i]];
         }
         push(product.data());
       }
