@@ -44,6 +44,9 @@ the exact modular/CNF certification-batch contracts.
 - `fast_math.base_p`: batched index/digit codec over encoded `F_p^n` points
   (`p <= 251`, `n <= 16`) with digit-wise negation, projective normal forms,
   and dense negation/scalar class tables across reference and native backends.
+- `fast_math.colex`: batched colexicographical rank/unrank for uint64 element
+  masks (`element_count <= 64`) with fixed-weight visit marking against a
+  caller-owned visited bitmap, across reference and native backends.
 - `fast_math.modular_linear`: canonical RREF, rank, row transforms, right and
   left nullspaces, inverses, and retained fixed-matrix solve batches. Native and
   HIP backends return either an exact solution or a left-null inconsistency
@@ -165,6 +168,24 @@ class zero; `representatives` and `counts` have exactly
 when `p = 2`) and `(p**width - 1) // (p - 1) + 1` for scalar classes.
 Negation-class representatives compose from shipped calls:
 `np.minimum(codes, base_p_negation_codes(codes, prime, width))`.
+
+## Colex ranking and orbit-marking contract
+
+Orbit-enumeration scouts hold subsets of `{0, ..., element_count - 1}` as
+uint64 element masks: bit `i` set means element `i`, low bit first. The
+colexicographical rank of a mask with sorted elements `c_1 < ... < c_k` is
+`C(c_1, 1) + ... + C(c_k, k)`. Ranks are unique only within a weight class,
+so masks naming elements outside the declared range fail instead of wrapping,
+and ranks at or above the weight-class size fail rather than wrapping.
+
+`colex_rank` ranks arbitrary batches. `colex_unrank(ranks, element_count,
+weight)` is its exact inverse for a declared weight. `colex_visit` is the
+enumeration shape: every subset must carry exactly the declared weight, and
+each rank test-and-sets one bit in a caller-owned uint64 visited bitmap of
+`ceil(C(element_count, weight) / 64)` words, updated in place, returning a
+per-subset flag that is true when its rank was not already marked. Reference
+and native backends agree bitwise; the native route is single-threaded, so
+results are stable across thread counts.
 
 ## Build and test
 
