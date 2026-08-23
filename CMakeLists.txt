@@ -82,6 +82,7 @@ set(FAST_MATH_CORE_SOURCES
 
 set(FAST_MATH_DOMAIN_SOURCES
   cpp/src/adaptive.cpp
+  cpp/src/base_p.cpp
   cpp/src/shift_gates.cpp
   cpp/src/ci.cpp
   cpp/src/elliptic.cpp

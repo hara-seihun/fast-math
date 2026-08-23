@@ -91,6 +91,11 @@ struct fast_math_digest_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_base_p_stats {
+  std::uint64_t element_count;
+  double elapsed_seconds;
+};
+
 struct fast_math_union_stats {
   std::uint64_t family_count;
   std::uint64_t pair_checks;
@@ -717,6 +722,51 @@ FAST_MATH_API int fast_math_digest_u64_rows_sha256(
     std::uint32_t thread_count,
     std::uint8_t* digests,
     fast_math_digest_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_base_p_decode_u64(
+    const std::uint64_t* indices,
+    std::size_t element_count,
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint32_t thread_count,
+    std::uint32_t* digits,
+    fast_math_base_p_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_base_p_encode_u64(
+    const std::uint32_t* digit_rows,
+    std::size_t element_count,
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint32_t thread_count,
+    std::uint64_t* indices,
+    fast_math_base_p_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_base_p_negation_representatives_u64(
+    const std::uint64_t* indices,
+    std::size_t element_count,
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint32_t thread_count,
+    std::uint64_t* representatives,
+    fast_math_base_p_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+FAST_MATH_API int fast_math_base_p_scalar_class_ids_u64(
+    const std::uint64_t* indices,
+    std::size_t element_count,
+    std::uint32_t prime,
+    std::uint32_t width,
+    std::uint32_t thread_count,
+    std::uint64_t* representatives,
+    std::uint32_t* class_ids,
+    fast_math_base_p_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 

@@ -1,0 +1,400 @@
+from __future__ import annotations
+
+from itertools import product
+
+import numpy as np
+import pytest
+
+from fast_math import (
+    base_p_decode,
+    base_p_encode,
+    base_p_negation_representatives,
+    base_p_scalar_classes,
+)
+from fast_math._native import (
+    base_p_negation_representatives_native,
+    base_p_decode_native,
+    base_p_scalar_classes_native,
+    native_available,
+)
+
+
+def encode_tuple(digits: tuple[int, ...], prime: int) -> int:
+    return sum(digit * prime**position for position, digit in enumerate(digits))
+
+
+def brute_force_negation_representative(
+    digits: tuple[int, ...],
+    prime: int,
+) -> int:
+    index = encode_tuple(digits, prime)
+    negated = tuple((prime - digit) % prime for digit in digits)
+    return min(index, encode_tuple(negated, prime))
+
+
+def brute_force_scalar_orbits(
+    prime: int,
+    width: int,
+) -> dict[int, list[int]]:
+    """Partition of all indices into orbits under nonzero scalar multiples."""
+    space = prime**width
+    seen: dict[int, list[int]] = {}
+    for index in range(space):
+        digits = tuple(
+            (index // prime**position) % prime for position in range(width)
+        )
+        orbit = frozenset(
+            encode_tuple(
+                tuple(digit * factor % prime for digit in digits),
+                prime,
+            )
+            for factor in range(1, prime)
+        )
+        assert encode_tuple(digits, prime) in orbit or not any(digits)
+        seen.setdefault(min(orbit) if orbit else {0}, []).append(index)
+    return seen
+
+
+def full_space(prime: int, width: int) -> np.ndarray:
+    return np.arange(prime**width, dtype=np.uint64)
+
+
+@pytest.mark.parametrize("prime", [2, 3, 5])
+@pytest.mark.parametrize("width", [1, 2, 3, 4])
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_round_trip_exhaustive(prime: int, width: int, backend: str) -> None:
+    space = full_space(prime, width)
+    digits = base_p_decode(space, prime, width, backend=backend)
+    assert digits.shape == (space.size, width)
+    np.testing.assert_array_equal(base_p_encode(digits, prime, backend=backend), space)
+    # Digit rows are little-endian and cover every tuple exactly once.
+    expected = np.array(
+        list(product(range(prime), repeat=width)), dtype=np.uint32
+    )
+    np.testing.assert_array_equal(np.unique(digits, axis=0), expected)
+    assert len({tuple(row) for row in digits.tolist()}) == space.size
+
+
+@pytest.mark.parametrize("prime", [2, 3, 5, 7])
+@pytest.mark.parametrize("width", [1, 2, 3])
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_negation_representatives_exhaustive(
+    prime: int,
+    width: int,
+    backend: str,
+) -> None:
+    space = full_space(prime, width)
+    actual = base_p_negation_representatives(space, prime, width, backend=backend)
+    expected = [
+        brute_force_negation_representative(
+            tuple((index // prime**position) % prime for position in range(width)),
+            prime,
+        )
+        for index in range(space.size)
+    ]
+    np.testing.assert_array_equal(actual, expected)
+    # Involution: representatives are fixed points.
+    np.testing.assert_array_equal(
+        base_p_negation_representatives(actual, prime, width, backend=backend),
+        actual,
+    )
+
+
+@pytest.mark.parametrize("prime", [2, 3, 5, 7])
+@pytest.mark.parametrize("width", [1, 2, 3])
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_scalar_classes_exhaustive_against_brute_force_orbits(
+    prime: int,
+    width: int,
+    backend: str,
+) -> None:
+    space = full_space(prime, width)
+    result = base_p_scalar_classes(space, prime, width, backend=backend)
+
+    orbits = brute_force_scalar_orbits(prime, width)
+    expected_reps = sorted(orbits)
+    expected_ids = np.empty(space.size, dtype=np.uint32)
+    for class_id, representative in enumerate(expected_reps):
+        expected_ids[orbits[representative]] = class_id
+
+    assert len(expected_reps) == (prime**width - 1) // (prime - 1) + 1
+    np.testing.assert_array_equal(result.class_ids, expected_ids)
+    # Representative per element is the minimal element of its orbit.
+    expected_representatives = np.array(
+        [
+            expected_reps[class_id]
+            for class_id in expected_ids.tolist()
+        ],
+        dtype=np.uint64,
+    )
+    np.testing.assert_array_equal(result.representatives, expected_representatives)
+    # Dense ids from zero; representative table recoverable via unique.
+    unique = np.unique(result.representatives)
+    np.testing.assert_array_equal(unique[expected_ids], result.representatives)
+    assert unique.size == len(expected_reps)
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_scalar_classes_match_group_orbits(backend: str) -> None:
+    """Cross-validate against an independent orbit computation.
+
+    ``F_p^*`` is cyclic, so scalar classes are exactly the point orbits of
+    the permutation generated by a primitive element acting on indices.
+    """
+    from fast_math import permutation_orbits
+
+    prime, width = 5, 4
+    primitive = next(
+        factor
+        for factor in range(2, prime)
+        if {pow(factor, power, prime) for power in range(prime - 1)}
+        == set(range(1, prime))
+    )
+    space = full_space(prime, width)
+    image = np.zeros(space.size, dtype=np.uint32)
+    for dimension in range(width):
+        digit = (space // prime**dimension) % prime
+        image += (
+            primitive * digit % prime
+        ).astype(np.uint32) * prime**dimension
+    orbits = permutation_orbits(
+        image.reshape(1, -1),
+        backend="reference",
+    )
+    ordered = sorted(orbits, key=lambda members: int(members.min()))
+    representatives_table = np.array(
+        [int(members.min()) for members in ordered],
+        dtype=np.uint64,
+    )
+    expected_ids = np.empty(space.size, dtype=np.int64)
+    for class_id, members in enumerate(ordered):
+        expected_ids[members] = class_id
+
+    result = base_p_scalar_classes(space, prime, width, backend=backend)
+    np.testing.assert_array_equal(result.class_ids, expected_ids)
+    np.testing.assert_array_equal(
+        result.representatives,
+        representatives_table[expected_ids],
+    )
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_zero_vector_is_its_own_class(backend: str) -> None:
+    result = base_p_scalar_classes([0], 5, 3, backend=backend)
+    assert result.class_ids.tolist() == [0]
+    assert result.representatives.tolist() == [0]
+    result = base_p_scalar_classes([0, 1, 0], 5, 3, backend=backend)
+    assert result.class_ids.tolist() == [0, 1, 0]
+
+
+def test_scalar_class_count_matches_projective_formula() -> None:
+    prime, width = 3, 4
+    result = base_p_scalar_classes(full_space(prime, width), prime, width)
+    expected_classes = (prime**width - 1) // (prime - 1) + 1
+    assert len(set(result.class_ids.tolist())) == expected_classes
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_scalar_class_paths_agree(backend: str) -> None:
+    """Direct labeling (bounded space) and sorted ranking (sparse batches)
+    must assign identical representatives and consistent ids."""
+    prime, width = 3, 10
+    space_size = prime**width  # 59,049: full batch -> direct table path
+    space = full_space(prime, width)
+    full_result = base_p_scalar_classes(space, prime, width, backend=backend)
+
+    rng = np.random.default_rng(4400)
+    # A sparse batch takes the general ranking path (space > 8 * batch).
+    subset = rng.choice(space, size=1_000, replace=False)
+    subset_result = base_p_scalar_classes(subset, prime, width, backend=backend)
+
+    # Representatives are intrinsic to the value.
+    np.testing.assert_array_equal(
+        subset_result.representatives,
+        full_result.representatives[subset],
+    )
+    # Reference backend agrees on the sparse batch too.
+    reference_result = base_p_scalar_classes(
+        subset,
+        prime,
+        width,
+        backend="reference",
+    )
+    np.testing.assert_array_equal(reference_result.representatives, subset_result.representatives)
+    np.testing.assert_array_equal(reference_result.class_ids, subset_result.class_ids)
+    assert len(set(full_result.class_ids.tolist())) == (space_size - 1) // (
+        prime - 1
+    ) + 1
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_batch_order_and_duplicates_do_not_change_labels(backend: str) -> None:
+    rng = np.random.default_rng(4100)
+    space = full_space(5, 6)
+    batch = rng.choice(space, size=2000, replace=True)
+    forward = base_p_scalar_classes(batch, 5, 6, backend=backend)
+    shuffled = base_p_scalar_classes(batch[::-1].copy(), 5, 6, backend=backend)
+    np.testing.assert_array_equal(shuffled.class_ids[::-1], forward.class_ids)
+    np.testing.assert_array_equal(
+        shuffled.representatives[::-1],
+        forward.representatives,
+    )
+    # Subset batches keep ids dense over the batch, ranked by representative.
+    subset = base_p_scalar_classes(batch[:37], 5, 6, backend=backend)
+    assert subset.class_ids.max() == len(set(subset.representatives.tolist())) - 1
+    assert set(subset.class_ids.tolist()) == set(range(subset.class_ids.max() + 1))
+
+
+@pytest.mark.skipif(not native_available(), reason="native library unavailable")
+@pytest.mark.parametrize("threads", [1, 2, 8])
+@pytest.mark.parametrize("function", ["negation", "scalar"])
+def test_native_thread_determinism(function: str, threads: int) -> None:
+    rng = np.random.default_rng(4200)
+    indices = rng.integers(0, 5**6, size=50_000, dtype=np.uint64)
+    if function == "negation":
+        baseline, _ = base_p_negation_representatives_native(indices, 5, 6, threads=1)
+        actual, _ = base_p_negation_representatives_native(
+            indices, 5, 6, threads=threads
+        )
+    else:
+        base_ids, base_reps, _ = base_p_scalar_classes_native(indices, 5, 6, threads=1)
+        actual_ids, actual_reps, _ = base_p_scalar_classes_native(
+            indices, 5, 6, threads=threads
+        )
+        np.testing.assert_array_equal(actual_ids, base_ids)
+        np.testing.assert_array_equal(actual_reps, base_reps)
+        return
+    np.testing.assert_array_equal(actual, baseline)
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_inputs_are_preserved(backend: str) -> None:
+    indices = np.array([0, 3, 12, 44], dtype=np.uint64)
+    original = indices.copy()
+    base_p_decode(indices, 3, 4, backend=backend)
+    base_p_negation_representatives(indices, 3, 4, backend=backend)
+    base_p_scalar_classes(indices, 3, 4, backend=backend)
+    np.testing.assert_array_equal(indices, original)
+    digits = np.array([[1, 2], [0, 2]], dtype=np.uint32)
+    original_digits = digits.copy()
+    base_p_encode(digits, 3, backend=backend)
+    np.testing.assert_array_equal(digits, original_digits)
+
+
+def test_boundary_index_spaces() -> None:
+    # p^width just inside uint64: 251^8 fits.
+    largest = np.array([251**8 - 1], dtype=np.uint64)
+    decoded = base_p_decode(largest, 251, 8, backend="reference")
+    np.testing.assert_array_equal(decoded, [[250] * 8])
+    encoded = base_p_encode(decoded, 251, backend="reference")
+    assert int(encoded[0]) == 251**8 - 1
+    # One more dimension overflows uint64.
+    with pytest.raises(ValueError, match="uint64"):
+        base_p_decode(np.zeros(1, dtype=np.uint64), 251, 9, backend="reference")
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_large_width_random_batches(backend: str) -> None:
+    rng = np.random.default_rng(4300)
+    indices = rng.integers(0, 2**16, size=4096, dtype=np.uint64)
+    round_trip = base_p_encode(
+        base_p_decode(indices, 2, 16, backend=backend),
+        2,
+        backend=backend,
+    )
+    np.testing.assert_array_equal(round_trip, indices)
+
+
+@pytest.mark.parametrize(
+    ("indices", "prime", "width", "message"),
+    [
+        ([15625], 5, 6, "outside"),
+        ([1 << 62], 5, 6, "outside"),
+        (np.array([-1], dtype=np.int64), 5, 6, "nonnegative"),
+        ([[1]], 5, 6, "one-dimensional"),
+        ([1.5], 5, 6, "integers"),
+        ([1], 4, 2, "must be prime"),
+        ([1], 256, 2, "between two"),
+        ([1], 1, 2, "between two"),
+        ([1], 5, 0, "between one"),
+        ([1], 5, 17, "between one"),
+        ([1], 5, 2.5, "integer"),
+        ([1], 5.5, 2, "integer"),
+    ],
+)
+@pytest.mark.parametrize("function", ["decode", "negation", "classes"])
+def test_reject_invalid_inputs(
+    indices,
+    prime,
+    width,
+    message: str,
+    function: str,
+) -> None:
+    targets = {
+        "decode": base_p_decode,
+        "negation": base_p_negation_representatives,
+        "classes": base_p_scalar_classes,
+    }
+    with pytest.raises(ValueError, match=message):
+        targets[function](indices, prime, width, backend="reference")
+
+
+@pytest.mark.parametrize(
+    ("digits", "message"),
+    [
+        ([[5]], "outside the field"),
+        ([[-1]], "outside the field"),
+        ([[1.5]], "integers"),
+    ],
+)
+def test_encode_rejects_invalid_digits(digits, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        base_p_encode(digits, 5, backend="reference")
+
+
+def test_encode_rejects_non_two_dimensional_input() -> None:
+    with pytest.raises(ValueError, match="two-dimensional"):
+        base_p_encode([1, 2, 3], 5, backend="reference")
+
+
+@pytest.mark.parametrize("backend", ["reference", "native"])
+def test_encode_rejects_oversized_signed_digits(backend: str) -> None:
+    """A value far beyond one digit must fail rather than wrap mod 2**32."""
+    with pytest.raises(ValueError, match="outside the field"):
+        base_p_encode(np.array([[2**40]], dtype=np.int64), 5, backend=backend)
+    with pytest.raises(ValueError, match="outside the field"):
+        base_p_encode(np.array([[2**40]], dtype=np.uint64), 5, backend=backend)
+
+
+@pytest.mark.skipif(not native_available(), reason="native library unavailable")
+def test_native_rejects_out_of_range_indices() -> None:
+    with pytest.raises(RuntimeError, match="outside"):
+        base_p_decode_native(np.array([5**6], dtype=np.uint64), 5, 6, threads=0)
+    with pytest.raises(RuntimeError, match="outside"):
+        base_p_scalar_classes_native(np.array([5**6], dtype=np.uint64), 5, 6, threads=0)
+
+
+def test_empty_batches_are_supported() -> None:
+    empty: NDArray[np.uint64] = np.empty(0, dtype=np.uint64)
+    assert base_p_decode(empty, 5, 6).size == 0
+    assert base_p_negation_representatives(empty, 5, 6).size == 0
+    result = base_p_scalar_classes(empty, 5, 6)
+    assert result.class_ids.size == 0
+    assert result.representatives.size == 0
+    assert base_p_encode(np.empty((0, 6), dtype=np.uint32), 5).size == 0
+
+
+def test_invalid_backend_name() -> None:
+    with pytest.raises(ValueError, match="backend"):
+        base_p_decode([0], 5, 6, backend="other")
+    with pytest.raises(ValueError, match="backend"):
+        base_p_encode([[0]], 5, backend="other")
+    with pytest.raises(ValueError, match="backend"):
+        base_p_negation_representatives([0], 5, 6, backend="other")
+    with pytest.raises(ValueError, match="backend"):
+        base_p_scalar_classes([0], 5, 6, backend="other")
+
+
+@pytest.mark.skipif(native_available(), reason="requires missing native library")
+def test_reference_backend_works_without_library() -> None:
+    assert base_p_scalar_classes([0, 1, 2], 3, 2, backend="auto").class_ids.shape == (3,)

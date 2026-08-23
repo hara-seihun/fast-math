@@ -25,6 +25,16 @@ from .actions import (
     u64_mask_lut,
 )
 from .plans import CayleyGraphPlan, FiniteGroupPlan, GraphCanonicalPlan
+from .base_p import (
+    MAX_BASE_P_PRIME,
+    MAX_BASE_P_WIDTH,
+    BasePBackend,
+    BasePScalarClasses,
+    base_p_decode,
+    base_p_encode,
+    base_p_negation_representatives,
+    base_p_scalar_classes,
+)
 from .segments import SegmentedComplexStats, segmented_complex_stats
 from .graph64 import (
     CliqueBatchResult,
@@ -339,6 +349,14 @@ __all__ = [
     "mestre_quartic",
     "quartic_points",
     "union_closed_family_masks",
+    "MAX_BASE_P_PRIME",
+    "MAX_BASE_P_WIDTH",
+    "BasePBackend",
+    "BasePScalarClasses",
+    "base_p_decode",
+    "base_p_encode",
+    "base_p_negation_representatives",
+    "base_p_scalar_classes",
     "AdaptiveAreaBatch",
     "AdaptiveBackend",
     "ExactAdaptiveAreaBatch",

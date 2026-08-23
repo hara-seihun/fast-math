@@ -3,7 +3,7 @@ SYSTEM_PKG_CONFIG_PATH ?= /run/current-system/sw/lib/pkgconfig
 export PKG_CONFIG_PATH := $(SYSTEM_PKG_CONFIG_PATH)$(if $(PKG_CONFIG_PATH),:$(PKG_CONFIG_PATH))
 LIBRARY = $(shell find build -maxdepth 3 -type f \( -name 'libfast_math.dylib' -o -name 'libfast_math.so' -o -name 'fast_math.dll' \) 2>/dev/null | head -1)
 
-.PHONY: configure build hip hip-test hip-benchmark packing mask-lut subset-actions modular-batches modular-linear cnf-verification adaptive-area test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci derivative-rank6 ci-weight-orbits union-closure union-closure-routes digests arb finufft finufft-cells finufft-canopy finufft-prime-shell metal clean
+.PHONY: configure build hip hip-test hip-benchmark packing mask-lut subset-actions modular-batches modular-linear cnf-verification adaptive-area test portable-test benchmark suite real-checkpoint moments inverse tune general graphs groups-ci derivative-rank6 ci-weight-orbits union-closure union-closure-routes base-p digests arb finufft finufft-cells finufft-canopy finufft-prime-shell metal clean
 
 configure:
 	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -87,6 +87,9 @@ union-closure: build
 
 union-closure-routes: build
 	env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_union_closure_routes.py --repeats 11 --output benchmarks/results/union-closure-native-routes-2026-07-28.json
+
+base-p: build
+	env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_base_p.py --repeats 7 --output benchmarks/results/base-p-local.json
 
 digests: build
 	env PYTHONPATH=python FAST_MATH_LIBRARY="$(LIBRARY)" $(PYTHON) benchmarks/benchmark_profile_digests.py --threads 7 --output benchmarks/results/profile-digests-2026-07-26.json

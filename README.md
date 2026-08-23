@@ -115,6 +115,12 @@ the exact modular/CNF certification-batch contracts.
 - `fast_math.union`: exact batch union-closure checks for families packed into
   one `uint64` word on ground sets through size six, with portable native and
   executable NumPy reference backends.
+- `fast_math.base_p`: batched base-p digit codec for `F_p^n` index spaces
+  (`p <= 251`, `n <= 16`, space fitting uint64), with canonical negation-pair
+  representatives, scalar-class (projective point) representatives via the
+  highest-nonzero-digit closed form, dense class ids stable across thread
+  counts and input orderings, native CPU backend, and an executable pure-Python
+  specification.
 - `fast_math.lambda_kernels`: compatibility home for the streamed Lambda
   coefficient and two-level replay kernels.
 - `fast_math_arb.h`: optional FLINT/Arb cache workspaces plus deterministic
