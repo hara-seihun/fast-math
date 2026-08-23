@@ -128,6 +128,16 @@ struct fast_math_tuple_orbit_stats {
   double elapsed_seconds;
 };
 
+struct fast_math_planar_collinearity_stats {
+  std::uint64_t base_point_count;
+  std::uint64_t edit_count;
+  std::uint64_t base_score;
+  std::uint64_t base_determinant_evaluations;
+  std::uint64_t edit_determinant_evaluations;
+  std::uint32_t worker_count;
+  double elapsed_seconds;
+};
+
 struct fast_math_elliptic_stats {
   std::uint64_t prime_count;
   std::uint64_t parameter_count;
@@ -933,6 +943,31 @@ FAST_MATH_API int fast_math_tuple_orbit_space_u64(
     std::uint64_t* canonical_codes,
     std::size_t space_capacity,
     fast_math_tuple_orbit_stats* stats,
+    char* error_message,
+    std::size_t error_message_size);
+
+// Exact collinear-triple scores for an int32 planar point set and a ragged
+// batch of delete/add edits. Points are interleaved x,y pairs. Each offsets
+// array has edit_count + 1 entries and delimits its corresponding item array.
+// A nonzero score_cutoff caps flagged edit scores for early-exit searches.
+FAST_MATH_API int fast_math_planar_collinearity_edits_i32(
+    const std::int32_t* base_points_interleaved,
+    std::size_t base_point_count,
+    const std::uint32_t* delete_indices,
+    std::size_t delete_index_count,
+    const std::uint64_t* delete_offsets,
+    const std::int32_t* added_points_interleaved,
+    std::size_t added_point_count,
+    const std::uint64_t* add_offsets,
+    std::size_t edit_count,
+    std::uint64_t score_cutoff,
+    std::uint32_t thread_count,
+    std::uint64_t* base_score,
+    std::uint64_t* point_degrees,
+    std::uint64_t* edit_scores,
+    std::int64_t* edit_deltas,
+    std::uint8_t* cutoff_reached,
+    fast_math_planar_collinearity_stats* stats,
     char* error_message,
     std::size_t error_message_size);
 
