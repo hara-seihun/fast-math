@@ -139,6 +139,11 @@ from .planar import (
     PlanarCollinearityScores,
     planar_collinearity_scores,
 )
+from .cyclic import (
+    CyclicCorrelationBackend,
+    CyclicCorrelationProfiles,
+    cyclic_correlation_profiles,
+)
 from .base_p import (
     BasePBackend,
     BasePClasses,
@@ -378,6 +383,9 @@ __all__ = [
     "PlanarCollinearityBackend",
     "PlanarCollinearityScores",
     "planar_collinearity_scores",
+    "CyclicCorrelationBackend",
+    "CyclicCorrelationProfiles",
+    "cyclic_correlation_profiles",
     "BasePBackend",
     "BasePClasses",
     "BasePClassTable",
