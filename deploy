@@ -57,6 +57,9 @@ find "$dest" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' |
   sort -rn | tail -n +3 | cut -d' ' -f2- |
   while read -r old; do rm -rf "$old"; done
 
+env -u FAST_MATH_LIBRARY -u LAMBDA_FAST_LIBRARY \
+  PYTHONPATH="$dest/current/python" \
+  python3 -c 'from fast_math._native import load_library; load_library()'
 "$dest/fast-math" "$dest/current/smoke.py"
 
 install -d -m 755 "$HOME/.local/bin"

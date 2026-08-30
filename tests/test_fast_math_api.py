@@ -13,7 +13,7 @@ import fast_math.modular_linear as fast_modular_linear
 import fast_math.plans as fast_plans
 import fast_math.runtime as fast_runtime
 import lambda_fast
-from fast_math._native import load_library
+from fast_math._native import _candidate_paths, _library_names, load_library
 
 
 def test_public_exports_are_bound() -> None:
@@ -31,6 +31,13 @@ def test_public_exports_are_bound() -> None:
         assert not [
             name for name in module.__all__ if not hasattr(module, name)
         ]
+
+
+def test_native_library_candidates_include_deployed_layout() -> None:
+    project = Path(fast_math.__file__).resolve().parents[2]
+    candidates = _candidate_paths()
+    for name in _library_names():
+        assert project / "lib" / name in candidates
 
 
 def test_lambda_package_can_load_before_fast_math() -> None:

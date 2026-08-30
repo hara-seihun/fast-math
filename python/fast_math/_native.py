@@ -334,6 +334,7 @@ def _candidate_paths() -> list[Path]:
                 project_root / "build" / name,
                 project_root / "build" / "Release" / name,
                 project_root / "build" / "lib" / name,
+                project_root / "lib" / name,
             )
         )
     return candidates
