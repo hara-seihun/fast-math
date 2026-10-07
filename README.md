@@ -101,8 +101,8 @@ the exact modular/CNF certification-batch contracts.
 - `fast_math.cuda`: the matching CuPy/CUDA affine-plan contract for Modal and
   other NVIDIA targets, with the same retained arrays, batching, values, and
   compact contour metrics.
-- `fast_math.hip`: the ROCm/HIP affine-plan contract for the local AMD Strix
-  Halo GPU. It uses native HIP kernels for affine populations and fused
+- `fast_math.hip`: the ROCm/HIP affine-plan contract for AMD Strix
+  Halo GPU hosts (not installed on Ubuntu `kenan-server`). It uses native HIP kernels for affine populations and fused
   contour metrics, with the same NumPy parity contract and automatic Linux
   dispatch.
 - `fast_math.arithmetic`: finite Dirichlet inverse construction.
@@ -141,19 +141,26 @@ order. It never materializes the 100-million-element output arrays.
 
 ## Build and test
 
-On the canonical NixOS research host, FLINT/Arb, nauty, NumPy, NetworkX, and
-pytest are declarative system dependencies. From this directory:
+Ubuntu 26.04 `kenan-server` runs the CPU library. Apt supplies `build-essential`,
+`cmake`, `ninja-build`, `pkg-config`, `libflint-dev` (including Arb), `libnauty-dev`,
+`rsync`, `python3-numpy`, `python3-scipy`, `python3-networkx` and `python3-pytest`.
+The test target also requires pytest-xdist. FINUFFT and python-flint use rebuilt
+system-Python wheels where apt has no package; the machine's
+[recovery/toolchain owner](../../machine/server-source-and-tools.md#ubuntu-toolchain)
+records the installed versions. No HIP/CUDA/NPU runtime or SageMath is installed.
+From this directory:
 
 ```sh
 make test
 ```
 
-This builds an x86-64 library tuned for the current Ryzen CPU, including the
+This builds an x86-64 library tuned for the build host CPU, including the
 FLINT/Arb and nauty kernels, creates the `liblambda_fast` compatibility link,
-and runs the native CTest and Python parity suites. Do not create a local
-wheel-based virtual environment on NixOS; the system Python owns the patched
-native dependencies. Set `PYTHON=/path/to/python` explicitly when testing an
-independent environment.
+and runs the native CTest and Python parity suites. The former GMKtec NixOS
+host used patched system native dependencies; a generic wheel environment was
+not a replacement for those patches. On Ubuntu, the installed apt libraries
+and regenerated wheels own the CPU runtime. Set `PYTHON=/path/to/python`
+explicitly when testing an independent environment.
 
 Research agents invoke the built library through the `fast-math` launcher,
 which is on `PATH` and needs no environment setup:
@@ -169,10 +176,12 @@ publishes the package, the CPU library, and the launcher to `/srv/pi/fast-math`
 so the unprivileged orchestrator fleet user can run it too, then validates it
 end to end with `smoke.py`. Each publish is a directory named by its commit with
 an atomically flipped `current` symlink, so a running session keeps the tree it
-started with. The published tree tracks `origin/main`: the PR lane republishes
-after every merge, and a developer's own launcher stays on their checkout. The
-HIP library is deliberately not published: it needs GPU device access the fleet
-user does not have.
+started with. A developer's own launcher stays on their checkout. On Ubuntu the installed
+launcher is `~/tools/fast-math/main`; the recovered checkout carries a local
+launcher-name/deploy adaptation, which must be retained when fast-forwarding
+source. The selected CPU tree is `/srv/pi/fast-math/current`; source updates do
+not switch it until `./deploy` publishes a built candidate. Former automated
+review/republication campaigns remain stopped. The HIP library is not published.
 
 Test coverage includes
 exhaustive behavior over every labeled graph through order five, invariant
@@ -190,14 +199,15 @@ modal run modal_validation.py --target all --gpu L4
 
 The CPU validation builds the complete native library on Linux x86_64 with
 GCC, runs CTest, and runs the Python suite. The GPU validation runs the shared
-affine-plan parity suite on an NVIDIA GPU. On the local AMD host, `make hip-test`
+affine-plan parity suite on an NVIDIA GPU. On a GPU-equipped AMD host with the HIP toolchain, `make hip-test`
 builds the `gfx1151` HIP backend and runs the same full-value and fused-metric
-parity checks against NumPy. The explicit ARM NEON kernels in the
+parity checks against NumPy; this is not a command for the CPU-only Ubuntu server. The explicit ARM NEON kernels in the
 Taylor and moment paths retain scalar fallbacks, while Linux builds may use
 the host x86 instruction set through `-march=native`.
 
-Changes land through pull requests against `hara-seihun/fast-math`, which an
-agent lane reviews, merges, and republishes. See
+The public source remote is `hara-seihun/fast-math`. Commit source changes in a
+managed workspace and publish through the current authorized source/deployment
+owner; restoring this repository did not resume the former review lane. See
 [`CONTRIBUTING.md`](CONTRIBUTING.md) for what a reviewable change carries and
 for the mathematical conventions every kernel keeps.
 

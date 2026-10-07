@@ -39,7 +39,8 @@ The package boundary is less mature than the kernels:
    as a domain consumer and can still be imported independently.
 3. CPU sources are explicitly grouped into core, domain, and Lambda components
    while retaining one ordinary shared-library installation. HIP remains a
-   separate optional build because NixOS supplies a split ROCm toolchain.
+   separate optional build, originally for GMKtec's split NixOS ROCm toolchain;
+   Ubuntu `kenan-server` publishes CPU-only and has no HIP runtime.
 4. Packed subset actions, finite-group tables, Cayley construction, and fixed
    graph canonicalization now have retained plans alongside permutation-group
    and transform plans.
