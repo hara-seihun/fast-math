@@ -1,8 +1,9 @@
 # Contributing
 
-Every change lands through a pull request against `hara-seihun/fast-math`. An
-agent lane reviews the queue, merges what holds up, and republishes the machine
-copy; nothing else is needed from you after the PR exists.
+Public source is `hara-seihun/fast-math`. The former GMKtec review and
+republication campaigns remain stopped on Ubuntu `kenan-server`; a source push
+or PR does not imply a review or deployment will run. The current task's owner
+must explicitly own publication and select the built CPU tree with `./deploy`.
 
 ## What belongs here
 
@@ -17,10 +18,9 @@ If you wrote the same loop by hand twice, it is a kernel. `tools/duplication-sca
 what it found last.
 
 Before you write one, ask whether it is already here: `fast-math --find csr`,
-`fast-math --index`, `fast_math.find("orbit", "subset")`. A branch named
-`kernel/<something>` is one the `fast-math-kernel` lane's demand probe counts as
-work already in flight, so name yours that way when you take a row out of the
-recurring table.
+`fast-math --index`, `fast_math.find("orbit", "subset")`. The former `fast-math-kernel` demand probe counted
+`kernel/<something>` branches as work in flight; that naming convention does
+not schedule research or publication on the recovered Ubuntu host.
 
 ## What a reviewable PR carries
 
@@ -39,22 +39,28 @@ disappointment.
 
 ## From this machine
 
-Fleet agents already hold the GitHub identity and the toolchain:
+Use a managed task checkout; shared tooling does not grant another Unix account
+Kenan's GitHub identity:
 
 ```sh
-git clone https://github.com/hara-seihun/fast-math ~/work/fast-math
-cd ~/work/fast-math && make test
-git switch -c kernel-name && git commit -am "Add ..." && git push -u origin HEAD
-gh pr create --fill
+agent-workspace create --root /home/kenan/work/clones --name fast-math-task \
+  --repo /home/kenan/tools/fast-math --owner fast-math-task --mode writer --json
+cd /home/kenan/work/clones/fast-math-task
+# Keep the workspace lease current while working:
+agent-workspace heartbeat --path "$PWD"
 ```
 
-`fast-math script.py` on `PATH` runs the published copy at
-`/srv/pi/fast-math`, which tracks `origin/main`. It is derived and disposable:
-the lane replaces it after every merge, so develop from your clone and treat a
-locally published tree as temporary.
+The normal capacity policy may reject a large checkout. For a documentation-only
+task, declare its explicit source-only headroom/growth budget rather than
+allocating build dependencies. Commit source in the task checkout, transfer the
+commit to the current publication owner, and release with `agent-workspace release
+--path PATH` after the push is durably accepted.
 
-Reviewing is the same repository: `gh pr diff`, read it, build it, and merge or
-say in a review what is missing.
+Kenan's `fast-math` launcher selects `~/tools/fast-math/main`; the published CPU
+library lives at `/srv/pi/fast-math/current`. Neither automatically follows a
+remote push. Preserve the installed checkout's local launcher-name/deploy
+adaptation when integrating source. The [README](README.md#build-and-test) owns
+Ubuntu dependencies and explicit publication.
 
 ## Optimization rule
 

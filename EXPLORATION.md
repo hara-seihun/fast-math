@@ -1,11 +1,15 @@
 # Exploration and certification batches
 
 Fast Math complements, rather than replaces, specialist mathematical systems.
-The canonical NixOS host includes SageMath, PARI/GP, Singular, Macaulay2,
+The former GMKtec NixOS survey included SageMath, PARI/GP, Singular, Macaulay2,
 Normaliz, cddlib, polymake, fplll, LinBox, FFLAS-FFPACK, GAP, FLINT, Z3,
-cvc5, CaDiCaL, and Kissat. These systems remain the owners of general computer
-algebra, Gröbner bases, Hilbert bases, polyhedral conversion, LLL, black-box
-linear algebra, and SAT/SMT search.
+cvc5, CaDiCaL, and Kissat. Those systems own general computer algebra,
+Gröbner bases, Hilbert bases, polyhedral conversion, LLL, black-box linear algebra,
+and SAT/SMT search. This is a research survey, not the Ubuntu package inventory.
+On Ubuntu 26.04 `kenan-server`, SageMath has no apt candidate and is not installed;
+GMKtec's custom Singular/Sage patches and GPU toolchains were not reproduced.
+[Recovered source and tools](../../machine/server-source-and-tools.md#ubuntu-toolchain)
+and its apt package inventory own the current installed CPU tools.
 
 The optimization opportunity is the repeated boundary around those systems:
 small object construction, language crossings, process startup, repeated
